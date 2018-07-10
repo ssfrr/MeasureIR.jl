@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/ssfrr/MeasureIR.jl.svg?branch=master)](https://travis-ci.org/ssfrr/MeasureIR.jl) [![Coverage Status](https://coveralls.io/repos/ssfrr/MeasureIR.jl/badge.svg?branch=master&service=github)](https://coveralls.io/github/ssfrr/MeasureIR.jl?branch=master) [![codecov.io](http://codecov.io/github/ssfrr/MeasureIR.jl/coverage.svg?branch=master)](http://codecov.io/github/ssfrr/MeasureIR.jl?branch=master)
 
+![Simulated Impulse Response](https://ssfrr.github.io/MeasureIR.jl/readme_ir.png)
 
 MeasureIR is a Julia library for measuring and analyzing [impulse responses](https://en.wikipedia.org/wiki/Impulse_response) (IRs). Impulse responses are generally captured by playing some kind of test signal through the system under test, and then analyzing the response to extract the IR.
 
