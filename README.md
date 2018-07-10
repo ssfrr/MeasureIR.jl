@@ -15,7 +15,7 @@ For this reason it is more common to use other signals like pseudo-random noise 
 Measuring an impulse response takes place in the following steps:
 
 1. Create a measurement (currently only `golay` is supported)
-2. Generate a test signal for the measurement using `generate(m)`, where `m` is a measurement. This signal is a single-channel time-domain signal that could be played directly through a speaker, or saved to a file for later measurement.
+2. Generate a test signal for the measurement using `stimulus(m)`, where `m` is a measurement. This signal is a single-channel time-domain signal that could be played directly through a speaker, or saved to a file for later measurement.
 3. Convolve the test signal with your system. This could be by playing the signal through a speaker into a room you're measuring, or using Julia's built-in `conv` function for testing. The result of this step should be a (possibly multichannel) response signal.
 4. Analyze the system response to generate the impulse response. The form of this is `analyze(m, response)` where `m` is your measurement object and `response` is the measured output of your system in response to the stimuli.
 
@@ -24,12 +24,12 @@ Measuring an impulse response takes place in the following steps:
 
 ```julia
 using Plots: plot
-using MeasureIR: golay, generate, analyze
+using MeasureIR: golay, stimulus, analyze
 
 meas = golay(4096)
 
 # generate the test stimuli suitable for playback
-stim = generate(meas)
+stim = stimulus(meas)
 
 # create a synthetic impulse response and simulate the system. This is where
 # you'd normally play the stimuli through your system and record the response

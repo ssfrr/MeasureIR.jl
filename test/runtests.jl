@@ -21,9 +21,9 @@ end
         seq = golay(L)
         @test length(seq.A) == L
         @test length(seq.B) == L
-        @test generate(seq) == [seq.A; zeros(L); seq.B; zeros(L)]
+        @test stimulus(seq) == [seq.A; zeros(L); seq.B; zeros(L)]
         # should get pure impulse
-        @test isapprox(analyze(seq, generate(seq)),
+        @test isapprox(analyze(seq, stimulus(seq)),
                        [1, zeros(L-1)...],
                        atol=sqrt(eps()))
     end
@@ -36,7 +36,7 @@ end
 
     kernel = rand(16)
     seq = golay(16)
-    measured = conv(generate(seq), kernel)
+    measured = conv(stimulus(seq), kernel)
     @test isapprox(analyze(seq, measured), kernel,
                    atol=sqrt(eps()))
 

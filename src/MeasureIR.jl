@@ -1,7 +1,7 @@
 module MeasureIR
 
 using Compat: @warn
-export generate, analyze
+export stimulus, analyze
 export golay
 
 abstract type IRMeasurement end
@@ -22,12 +22,12 @@ of two.
 
 ```julia
 using Plots: plot
-using MeasureIR: golay, generate, analyze
+using MeasureIR: golay, stimulus, analyze
 
 meas = golay(4096)
 
 # generate the test stimuli suitable for playback
-stim = generate(meas)
+stim = stimulus(meas)
 
 # create a synthetic impulse response and simulate the system. This is where
 # you'd normally play the stimuli through your system and record the response
@@ -50,14 +50,14 @@ function golay(L)
 end
 
 """
-    generate(sig)
+    stimulus(sig)
 
 Generate the stimulus signal for the given measurement process. This is the
 signal that should be run through your test system to measure the impulse
 response. After recording the response you can use the `analyze` function to
 generate the impulse response.
 """
-generate(sig::GolaySequence) = [sig.A;
+stimulus(sig::GolaySequence) = [sig.A;
                                 zeros(length(sig.A));
                                 sig.B;
                                 zeros(length(sig.B))]
@@ -76,9 +76,9 @@ end
     analyze(sig::IRTestSignal, response::AbstractArray)
 
 Convert a given stimulus response into an impulse response. Generally you will
-first create the test signal with e.g. `golay`, then use `generate` to give you
-the actual stimulus, then pass the original stimulus and the measures response
-to `analyze`.
+first create the test signal with e.g. `golay`, then use `stimulus` to give you
+the actual stimulus, then pass the original measurement object and the measures
+response to `analyze`.
 
 If `response` is a 2D array it is treated as an NxC multichannel response with
 `N` frames and `C` channels.
