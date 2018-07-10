@@ -41,3 +41,30 @@ ir = analyze(meas, output)
 
 plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 ```
+
+## Live Capture with PortAudio.jl
+
+Rather than using an external program to play back the stimulus and record the
+response, you can perform the test from within Julia using the PortAudio.jl
+package.
+
+This code snippet will play the stimulus `stim` through your sound card's default output (be careful, the golay stimulus not fun to listen to), and in parallel record through your default input.
+
+```julia
+using MeasureIR: golay, stimulus, analyze
+using PortAudio: PortAudioStream
+
+meas = golay(4*48000)
+stim = stimulus(meas)
+
+# run this block of code together, rather than each line individually
+sleep(1) # sleep so we don't record the keystroke launching this code
+str = PortAudioStream(synced=true)
+@async write(str, stim*0.2)
+resp = read(str, length(stim))
+close(str)
+
+# we need to do a little data munging here to work around some issues in
+# DSP.jl
+ir = analyze(meas, Float64.(resp.data))
+```
