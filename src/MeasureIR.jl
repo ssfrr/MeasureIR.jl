@@ -1,11 +1,12 @@
 module MeasureIR
 
 using Compat: @warn
-export analyze, generate, golay
+export generate, analyze
+export golay
 
-abstract type IRTestSignal end
+abstract type IRMeasurement end
 
-struct GolaySequence{AT<:AbstractVector} <: IRTestSignal
+struct GolaySequence{AT<:AbstractVector} <: IRMeasurement
     A::AT
     B::AT
 end
@@ -13,22 +14,30 @@ end
 """
     golay(L)
 
-Create a test signal using a complimentary Golay sequence, assuming that the
+Create an IR measurement using a complimentary Golay sequence, assuming that the
 system being measured has a response less than length `L`. `L` should be a power
 of two.
 
 ## Example
 
 ```julia
-sig = golay(4096)
+using Plots: plot
+using MeasureIR: golay, generate, analyze
 
-# generate the actual test signal suitable for playback
-output = generate(sig)
+meas = golay(4096)
 
-# create a synthetic impulse response
-ir = 1./exp.(0:100) .* rand(100)
+# generate the test stimuli suitable for playback
+stim = generate(meas)
 
-analyze(sig, conv(output, ir)) ≈ ir # should be true
+# create a synthetic impulse response and simulate the system. This is where
+# you'd normally play the stimuli through your system and record the response
+irsim = 1./exp.(0:0.1:9.9) .* (rand(100) .- 0.5)
+output = conv(stim, irsim)
+
+# analyze to reconstruct the impulse response
+ir = analyze(meas, output)
+
+plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 ```
 """
 function golay(L)
