@@ -1,8 +1,9 @@
 module MeasureIR
 
 using Compat: @warn
-# using Unitful: Time
 import Unitful
+using Unitful: s, Hz
+using SampledSignals: SampleBuf
 
 export stimulus, analyze
 export golay
@@ -15,19 +16,26 @@ struct GolaySequence{AT<:AbstractVector} <: IRMeasurement
 end
 
 """
-    golay(L)
+    golay(samples)
+    golay(seconds::Time, samplerate)
+    golay(seconds::Time, samplerate::Frequency)
 
 Create an IR measurement using a complimentary Golay sequence, assuming that the
-system being measured has a response less than length `L`. The actual length of
-the generated sequence might be greater than L.
+system being measured has a response less than length `samples`. The actual
+length of the generated sequence might be greater than `samples`.
+
+You can also specify the length with a duration in seconds along with a
+sampling rate. The sampling rate can either be specified as a raw number or
+a unitful frequency.
 
 ## Example
 
 ```julia
 using Plots: plot
 using MeasureIR: golay, stimulus, analyze
+using Unitful: s, Hz
 
-meas = golay(4096)
+meas = golay(2s, 48kHz)
 
 # generate the test stimuli suitable for playback
 stim = stimulus(meas)
@@ -46,12 +54,12 @@ plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 function golay end
 
 function golay(L)
-    ispow2(L) || L = nextpow2(L)
+    L = nextpow2(L)
     GolaySequence(_golay(L)...)
 end
 
-golay(t::Time, samplerate::Frequency) = golay(Int(t*samplerate))
-golay(t::Time, samplerate) = golay(Int(t/(1s) * samplerate))
+golay(t::Unitful.Time, samplerate::Unitful.Frequency) = golay(Int(t*samplerate))
+golay(t::Unitful.Time, samplerate) = golay(Int(t/(1s) * samplerate))
 
 Base.:(==)(g1::GolaySequence, g2::GolaySequence) = g1.A == g2.A && g1.B == g2.B
 
@@ -114,5 +122,9 @@ function analyze(sig::GolaySequence, response::AbstractArray)
     end
     irA + irB
 end
+
+# workaround needed because DSP.jl doesn't handle SampleBufs
+# and Float32s well
+analyze(sig::GolaySequence, response::SampleBuf) = analyze(sig, Float64.(response.data))
 
 end # module

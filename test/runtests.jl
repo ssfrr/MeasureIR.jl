@@ -1,7 +1,6 @@
 using MeasureIR
 using TestSetExtensions
-using Suppressor
-using Unitful
+using Unitful: s, Hz
 @static if VERSION < v"0.7.0-DEV.2005"
     using Base.Test
 else
@@ -34,6 +33,7 @@ end
         seq = golay(13)
         @test length(seq.A) == 16
         @test length(seq.B) == 16
+
         # test equality
         @test golay(16) == golay(16)
         @test golay(16) != golay(8)
@@ -49,6 +49,7 @@ end
     end
 
     @testset "Unitful initialization" begin
+        # unitful sampling rate is optional
         @test golay(2s, 48000Hz) == golay(96000)
         @test golay(2s, 48000) == golay(96000)
     end
