@@ -1,6 +1,9 @@
 module MeasureIR
 
 using Compat: @warn
+# using Unitful: Time
+import Unitful
+
 export stimulus, analyze
 export golay
 
@@ -15,8 +18,8 @@ end
     golay(L)
 
 Create an IR measurement using a complimentary Golay sequence, assuming that the
-system being measured has a response less than length `L`. `L` should be a power
-of two.
+system being measured has a response less than length `L`. The actual length of
+the generated sequence might be greater than L.
 
 ## Example
 
@@ -40,14 +43,17 @@ ir = analyze(meas, output)
 plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 ```
 """
+function golay end
+
 function golay(L)
-    if !ispow2(L)
-        L2 = nextpow2(L)
-        @warn "golay($L): should be power of two, upgrading to $L2"
-        L = L2
-    end
+    ispow2(L) || L = nextpow2(L)
     GolaySequence(_golay(L)...)
 end
+
+golay(t::Time, samplerate::Frequency) = golay(Int(t*samplerate))
+golay(t::Time, samplerate) = golay(Int(t/(1s) * samplerate))
+
+Base.:(==)(g1::GolaySequence, g2::GolaySequence) = g1.A == g2.A && g1.B == g2.B
 
 """
     stimulus(sig)
