@@ -7,14 +7,6 @@ else
     using Test
 end
 
-function padequal(x::AbstractArray{T}, y::AbstractArray{T}) where {T}
-    if length(x) > length(y)
-        y = [y; zeros(T, length(x)-length(y))]
-    elseif length(y) > length(x)
-        x = [x; zeros(T, length(y)-length(x))]
-    end
-    x, y
-end
 @testset "MeasureIR" begin
     @testset "Golay Sequences" ExtendedTestSet begin
         for L in (8, 16)
