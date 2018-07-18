@@ -49,6 +49,10 @@ striphz(f::Frequency{T}) where T = T(f/Hz)
 stripsec(t) = t
 stripsec(t::Time{T}) where T = T(t/s)
 
+# workaround needed because DSP.jl doesn't handle SampleBufs
+# and Float32s well
+analyze(sig::IRMeasurement, response::SampleBuf) = SampleBuf(analyze(sig, Float64.(response.data)), samplerate(response))
+
 include("golay.jl")
 include("impulse.jl")
 include("expsweep.jl")

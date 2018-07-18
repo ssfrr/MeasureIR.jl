@@ -136,10 +136,6 @@ function analyze(sig::GolaySequence, response::AbstractArray)
     irA + irB
 end
 
-# workaround needed because DSP.jl doesn't handle SampleBufs
-# and Float32s well
-analyze(sig::GolaySequence, response::SampleBuf) = analyze(sig, Float64.(response.data))
-
 # this is no longer used because the brickwall cutoff causes unacceptable
 # ringing in the time-domain signal, causing aliasing in the deconvolution
 """

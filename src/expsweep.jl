@@ -101,9 +101,11 @@ function analyze(m::ExpSweep, response::AbstractArray)
     # on that frequency
     amp = @. w1/T*log(w2/w1)*exp(t/T*log(w2/w1))
     invfilt = amp .* m.sig
-    ir = xcorr(response, invfilt)
+    ir = mapslices(response, 1) do v
+        xcorr(v, invfilt)
+    end
 
     # keep the full IR (including non-causal parts representing nonlinearities)
     # if m.nonlinear is true
-    m.nonlinear ? ir[T:3T] : ir[2T:3T]
+    m.nonlinear ? ir[T:3T, :] : ir[2T:3T, :]
 end
