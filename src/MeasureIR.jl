@@ -7,7 +7,7 @@ using Roots: find_zero
 using DSP: hanning, FIRFilter, filt
 
 export stimulus, analyze
-export expsweep, golay, impulse
+export expsweep, golay, mls, schroeder, impulse
 
 """
 Abstract supertype for impulse response measurements. Subtypes should define a
@@ -52,5 +52,7 @@ stripsec(t::Time{T}) where T = T(t/s)
 include("golay.jl")
 include("impulse.jl")
 include("expsweep.jl")
+include("mls.jl")
+include("schroeder.jl")
 
 end # module
