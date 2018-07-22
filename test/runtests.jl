@@ -64,6 +64,14 @@ function testmeasure(measfunc)
             @test maximum(ir[delays[ch]+10:end, ch].^2) < 0.01*maxval^2
         end
     end
+
+    @testset "$funcname - vector/matrix type handling" begin
+        meas = measfunc(16)
+        stim = stimulus(meas)
+        @test stim isa Vector
+        @test analyze(meas, stim) isa Vector
+        @test analyze(meas, [stim stim]) isa Matrix
+    end
 end
 
 @testset "MeasureIR" ExtendedTestSet begin

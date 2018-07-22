@@ -131,16 +131,15 @@ function analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
     scale = abs(rfft(roundtrip)[centeridx])
     invfilt /= scale
 
-    resp = @view response[m.prepad+1:end, :]
-    ir = mapslices(resp, 1) do v
-        xcorr(v, invfilt)
+    ir = mapslices(response, 1) do v
+        xcorr(v[m.prepad+1:end], invfilt)
     end
 
     # keep the full IR (including non-causal parts representing nonlinearities)
     # if m.nonlinear is true
     zeroidx = size(ir,1)÷2+1
     if noncausal
-        ir[zeroidx-T:zeroidx+T, :]
+        timeslice(ir, zeroidx-T:zeroidx+T)
     else
         # nonlinearity detection is not working right now, but it seems like a
         # useful feature to add in the future. One issue is that we need a way
@@ -170,6 +169,6 @@ function analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
         # if any(noncausalpower .> nf .* 1.1 .+ sqrt(eps()))
         #     @warn "Energy in noncausal IR is above noise floor. Check for nonlinearity"
         # end
-        ir[zeroidx:zeroidx+T, :]
+        timeslice(ir, zeroidx:zeroidx+T)
     end
 end

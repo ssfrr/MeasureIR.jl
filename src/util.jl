@@ -18,7 +18,7 @@ function truncresponse(response::AbstractArray, L, noisepower=eps(); warn=true)
                          "your test signal is long enough for the response")
             # Base.show_backtrace(STDERR, backtrace())
         end
-        response = _truncresponse(response, L)
+        response = timeslice(response, 1:L)
     end
 
     response
@@ -26,8 +26,8 @@ end
 
 # internal functions to do the actual truncation while keeping the
 # dimensionality
-_truncresponse(response::AbstractVector, L) = response[1:L]
-_truncresponse(response::AbstractMatrix, L) = response[1:L, :]
+timeslice(response::AbstractVector, I) = response[I]
+timeslice(response::AbstractMatrix, I) = response[I, :]
 
 # used to help parse arguments
 striphz(f) = f

@@ -103,8 +103,9 @@ function analyze(sig::GolaySequence, response::AbstractArray)
     L = Int(length(sig.A) * sig.upsample)
     np = noisefloor(sig, response)
     # we chop off the silence part - there's nothing causal for us there
-    respA = @views response[sig.prepad+(1:2L), :]
-    @views respB = truncresponse(response[sig.prepad+2L+1:end, :], 2L, np)
+    respA = timeslice(response, sig.prepad+(1:2L))
+    @views respB = truncresponse(
+            timeslice(response, sig.prepad+2L+1:size(response, 1)), 2L, np)
     if sig.upsample != 1
         # we can use the full-bandwidth zero-stuffed signal for the
         # cross-correlation, so that any weirdness caused by our upsampling
