@@ -1,9 +1,12 @@
 struct GolaySequence{AT<:AbstractVector} <: IRMeasurement
     A::AT
     B::AT
+    prepad::Int
     amp::Float64
     upsample::Int
 end
+
+prepadding(g::GolaySequence) = g.prepad
 
 """
     golay(samples; options...)
@@ -12,7 +15,7 @@ end
 
 Create an IR measurement using a complimentary Golay sequence, assuming that the
 system being measured has a response less than length `samples`. The actual
-length of the generated sequence might be greater than `samples`.
+length of the generated stimulus sequence might be greater than `samples`.
 
 You can also specify the length with a duration in seconds along with a
 sampling rate. The sampling rate can either be specified as a raw number or
@@ -20,17 +23,20 @@ a unitful frequency.
 
 ## Options
 
-- `amp::AbstractFloat`: Amplitude of the binary signal. Defaults to 1/2.2, which provides
-  enough headroom so that the analog stimulus has an maximum amplitude of about
-  1. This means that if you set the gain of your playback system such that a
-  full-scale sinusoid does not distort, the default golay code should not
+- `amp::AbstractFloat`: Amplitude of the binary signal. Defaults to 1/2.2, which
+  provides enough headroom so that the analog stimulus has an maximum amplitude
+  of about 1. This means that if you set the gain of your playback system such
+  that a full-scale sinusoid does not distort, the default golay code should not
   distort either.
-- `upsample::Integer`: Defaults to 1, which creates a standard binary golay
-  code with energy up to nyquist. Setting this to a higher number will create
-  a bandlimited version, so `upsample=2` will only have energy up to 1/2 the
+- `prepad::Int`: Defaults to `samples`. Puts a period of silence at the
+  beginning of the measurement that can be used to estimate the noise floor.
+- `upsample::Integer`: Defaults to 1, which creates a standard binary golay code
+  with energy up to nyquist. Setting this to a higher number will create a
+  bandlimited version, so `upsample=2` will only have energy up to 1/2 the
   nyquist frequency. Often the upper frequencies of the impulse response are
-  time-variant. Decreasing the bandwidth can also help avoid nonlinearities due
-  to slew-rate limiting in the playback system.
+  time-variant, so they may not be accurately measurable anyways. Decreasing the
+  bandwidth can also help avoid nonlinearities due to slew-rate limiting in the
+  playback system.
 
 ## Example
 
@@ -57,10 +63,10 @@ plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 """
 function golay end
 
-function golay(L; amp=1/2.2, upsample=1)
+function golay(L; amp=1/2.2, prepad=L, upsample=1)
     L = nextpow2(ceil(Int, L/upsample))
     A, B = _golay(L)
-    GolaySequence(A, B, amp, upsample)
+    GolaySequence(A, B, prepad, amp, upsample)
 end
 
 golay(t::Time, samplerate::Frequency; options...) = golay(Int(t*samplerate); options...)
@@ -75,10 +81,10 @@ function stimulus(sig::GolaySequence)
             zeros(length(sig.B))]
     if sig.upsample != 1
         # force upsampling ratio to be a rational (DSP.jl issue #211)
-        stim = filt(FIRFilter(sig.upsample)//1, stim)
+        stim = filt(FIRFilter(sig.upsample//1), stim)
     end
 
-    stim
+    [zeros(sig.prepad); stim]
 end
 
 # naive implementation, allocates a lot, but runs reasonably fast
@@ -95,17 +101,10 @@ function analyze(sig::GolaySequence, response::AbstractArray)
     # stimuli has 2 measurements, each with a length-L golay sequence
     # and length-L silence.
     L = Int(length(sig.A) * sig.upsample)
-    if size(response, 1) > 4L
-        trunc = false
-        for ch in 1:size(response, 2)
-            if !isapprox(response[(4L+1):end, ch],
-                         zeros(size(response, 1)-4L),
-                         atol=sqrt(eps()))
-                trunc=true
-            end
-        end
-        trunc && @warn "nonzero samples past end of analysis window. Check your test signal is long enough for the response"
-    end
+    np = noisefloor(sig, response)
+    # we chop off the silence part - there's nothing causal for us there
+    respA = @views response[sig.prepad+(1:2L), :]
+    @views respB = truncresponse(response[sig.prepad+2L+1:end, :], 2L, np)
     if sig.upsample != 1
         # we can use the full-bandwidth zero-stuffed signal for the
         # cross-correlation, so that any weirdness caused by our upsampling
@@ -127,10 +126,10 @@ function analyze(sig::GolaySequence, response::AbstractArray)
     end
     # run the cross-correlation, chopping off the non-causal part and the part
     # that would be corrupted if the IR is too long
-    irA = mapslices(response[1:2L, :], 1) do v
+    irA = mapslices(respA, 1) do v
         xcorr(v, A)[2L:(3L-1)] ./ (2L * sig.amp)
     end
-    irB = mapslices(response[(2L+1):4L, :], 1) do v
+    irB = mapslices(respB, 1) do v
         xcorr(v, B)[2L:(3L-1)] ./ (2L * sig.amp)
     end
     irA + irB

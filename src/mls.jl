@@ -1,9 +1,12 @@
 struct MLS{AT} <: IRMeasurement
     sig::AT
     amp::Float64
+    prepad::Int
 end
 
-function mls(L, amp=1/2.2)
+prepadding(m::MLS) = m.prepad
+
+function mls(L, amp=1/2.2; prepad=L)
     N = Int(log2(nextpow2(L)))
     1 <= N <= length(mlspolys) || throw(ArgumentError("N must be positive and <= $(length(mlspolys))"))
     poly = mlspolys[N]
@@ -25,16 +28,16 @@ function mls(L, amp=1/2.2)
         out[i] = float(nextval) * 2 - 1
     end
 
-    MLS(out, amp)
+    MLS(out, amp, prepad)
 end
 
-stimulus(m::MLS) = m.sig*m.amp
+stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.amp]
 
 function analyze(m::MLS, response::AbstractArray)
     L = length(m.sig)
     mapslices(response, 1) do v
         # compensate for the amplitude drop
-        xcorr(v, m.sig)[L:end] ./ L / m.amp
+        xcorr(v[m.prepad+1:end], m.sig)[end÷2+1:end] ./ L / m.amp
     end
 end
 

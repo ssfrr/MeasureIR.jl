@@ -6,7 +6,7 @@ using SampledSignals: SampleBuf
 using Roots: find_zero
 using DSP: hanning, FIRFilter, filt
 
-export stimulus, analyze
+export stimulus, analyze, noisefloor, prepadding, snr
 export expsweep, golay, mls, schroeder, impulse
 
 """
@@ -19,6 +19,13 @@ returns a vector suitable for playing directly into the system, as well as a
 and generates an impulse response.
 """
 abstract type IRMeasurement end
+
+"""
+    prepadding(meas::IRMeasurement)
+
+Get the number of samples of prepadding silence for the given measurement.
+"""
+function prepadding end
 
 """
     stimulus(sig)
@@ -43,16 +50,36 @@ If `response` is a 2D array it is treated as an NxC multichannel response with
 """
 function analyze end
 
-# used to help parse arguments
-striphz(f) = f
-striphz(f::Frequency{T}) where T = T(f/Hz)
-stripsec(t) = t
-stripsec(t::Time{T}) where T = T(t/s)
+"""
+    noisefloor(sig::IRMeasurement, response::AbstractArray)
+
+Estimate the noise floor in the given signal using the prepadded silence
+specified by the measurement. Throws an error if the measurement has no
+prepadding.
+
+For a multichannel response returns a row vector with power per channel, or
+returns a single number if the input is a Vector.
+"""
+function noisefloor(sig::IRMeasurement, response::AbstractArray)
+    N = prepadding(sig)
+    N > 0 || throw(ArgumentError("Can't estimate noise without prepadding"))
+    _noisefloor(response, N)
+end
+
+_noisefloor(response::AbstractVector, N) = sum(response[1:N, :].^2, 1) / N
+_noisefloor(response::AbstractMatrix, N) = sum(response[1:N].^2) / N
+
+"""
+    snr(sig::IRMeasurement, response::AbstractArray)
+
+Estimate the signal-to-noise ratio
+"""
 
 # workaround needed because DSP.jl doesn't handle SampleBufs
 # and Float32s well
 analyze(sig::IRMeasurement, response::SampleBuf) = SampleBuf(analyze(sig, Float64.(response.data)), samplerate(response))
 
+include("util.jl")
 include("golay.jl")
 include("impulse.jl")
 include("expsweep.jl")
