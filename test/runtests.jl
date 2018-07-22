@@ -1,6 +1,7 @@
 using MeasureIR
 using TestSetExtensions
 using Unitful: s, kHz
+using SampledSignals: SampleBuf, samplerate
 using Suppressor
 using DSP
 @static if VERSION < v"0.7.0-DEV.2005"
@@ -71,6 +72,15 @@ function testmeasure(measfunc)
         @test stim isa Vector
         @test analyze(meas, stim) isa Vector
         @test analyze(meas, [stim stim]) isa Matrix
+    end
+
+    @testset "$funcname - analysis works with SampleBuf" begin
+        meas = measfunc(16)
+        stim = stimulus(meas)
+        stimbuf = SampleBuf(stim, 44100)
+        irbuf = analyze(meas, stimbuf)
+        @test irbuf isa SampleBuf
+        @test samplerate(irbuf) == 44100
     end
 end
 

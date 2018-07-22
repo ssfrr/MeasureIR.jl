@@ -2,7 +2,7 @@ module MeasureIR
 
 using Compat: @warn
 using Unitful: s, Hz, Time, Frequency
-using SampledSignals: SampleBuf
+using SampledSignals: SampleBuf, samplerate
 using Roots: find_zero
 using DSP: hanning, FIRFilter, filt
 
@@ -69,21 +69,17 @@ end
 _noisefloor(response::AbstractVector, N) = sum(response[1:N, :].^2, 1) / N
 _noisefloor(response::AbstractMatrix, N) = sum(response[1:N].^2) / N
 
-"""
-    snr(sig::IRMeasurement, response::AbstractArray)
-
-Estimate the signal-to-noise ratio
-"""
-
-# workaround needed because DSP.jl doesn't handle SampleBufs
-# and Float32s well
-analyze(sig::IRMeasurement, response::SampleBuf) = SampleBuf(analyze(sig, Float64.(response.data)), samplerate(response))
-
 include("util.jl")
 include("golay.jl")
 include("impulse.jl")
 include("expsweep.jl")
 include("mls.jl")
 include("schroeder.jl")
+
+# workaround needed because DSP.jl doesn't handle SampleBufs
+# and Float32s well. We dispatch to an internal _analyze to avoid method
+# ambiguity issues if each measurement type defined its own `analyze` method.
+analyze(sig::IRMeasurement, response::AbstractArray) = _analyze(sig, response)
+analyze(sig::IRMeasurement, response::SampleBuf) = SampleBuf(_analyze(sig, Float64.(response.data)), samplerate(response))
 
 end # module

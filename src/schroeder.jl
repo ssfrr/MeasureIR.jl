@@ -23,7 +23,7 @@ end
 stimulus(s::SchroederNoise) = [zeros(s.prepad); s.sig]
 prepadding(s::SchroederNoise) = s.prepad
 
-function analyze(s::SchroederNoise, response::AbstractArray)
+function _analyze(s::SchroederNoise, response::AbstractArray)
     L = length(s.sig)
     mapslices(response, 1) do v
         xcorr(v[s.prepad+1:end], s.sig)[end÷2+1:end]

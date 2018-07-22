@@ -97,7 +97,7 @@ function _golay(L)
     end
 end
 
-function analyze(sig::GolaySequence, response::AbstractArray)
+function _analyze(sig::GolaySequence, response::AbstractArray)
     # stimuli has 2 measurements, each with a length-L golay sequence
     # and length-L silence.
     L = Int(length(sig.A) * sig.upsample)

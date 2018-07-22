@@ -107,7 +107,7 @@ energy from nonlinear distortion in the system. In this case the zero-lag part
 of the impulse response starts at index `L÷2+1`, where `L` is the length of the
 IR.
 """
-function analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
+function _analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
     # we don't truncate the response here because typically sweep measurements
     # are taken without repeating, so there's no real errors we'd catch by
     # truncating.

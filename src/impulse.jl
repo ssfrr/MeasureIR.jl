@@ -20,5 +20,5 @@ impulse(t::Time, samplerate::Frequency) = impulse(Int(t*samplerate))
 impulse(t::Time, samplerate) = impulse(Int(t/(1s) * samplerate))
 
 stimulus(m::Impulse) = [zeros(m.prepad); 1.0; zeros(m.len-1)]
-analyze(m::Impulse, response::AbstractMatrix) = response[m.prepad+1:end, :]
-analyze(m::Impulse, response::AbstractVector) = response[m.prepad+1:end]
+_analyze(m::Impulse, response::AbstractArray) =
+        timeslice(response, m.prepad+1:size(response, 1))

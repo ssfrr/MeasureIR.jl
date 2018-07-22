@@ -33,7 +33,7 @@ end
 
 stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.amp]
 
-function analyze(m::MLS, response::AbstractArray)
+function _analyze(m::MLS, response::AbstractArray)
     L = length(m.sig)
     mapslices(response, 1) do v
         # compensate for the amplitude drop
