@@ -79,7 +79,9 @@ include("schroeder.jl")
 # workaround needed because DSP.jl doesn't handle SampleBufs
 # and Float32s well. We dispatch to an internal _analyze to avoid method
 # ambiguity issues if each measurement type defined its own `analyze` method.
-analyze(sig::IRMeasurement, response::AbstractArray) = _analyze(sig, response)
-analyze(sig::IRMeasurement, response::SampleBuf) = SampleBuf(_analyze(sig, Float64.(response.data)), samplerate(response))
+analyze(sig::IRMeasurement, response::AbstractArray; kwargs...) =
+        _analyze(sig, response; kwargs...)
+analyze(sig::IRMeasurement, response::SampleBuf; kwargs...) =
+        SampleBuf(_analyze(sig, Float64.(response.data)), samplerate(response); kwargs...)
 
 end # module
