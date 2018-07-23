@@ -31,7 +31,7 @@ function mls(L, amp=1/2.2; prepad=L)
     MLS(out, amp, prepad)
 end
 
-stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.amp]
+stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.amp; zeros(length(m.sig))]
 
 function _analyze(m::MLS, response::AbstractArray)
     L = length(m.sig)

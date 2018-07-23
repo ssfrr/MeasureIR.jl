@@ -82,6 +82,6 @@ include("schroeder.jl")
 analyze(sig::IRMeasurement, response::AbstractArray; kwargs...) =
         _analyze(sig, response; kwargs...)
 analyze(sig::IRMeasurement, response::SampleBuf; kwargs...) =
-        SampleBuf(_analyze(sig, Float64.(response.data)), samplerate(response); kwargs...)
+        SampleBuf(_analyze(sig, Float64.(response.data); kwargs...), samplerate(response))
 
 end # module

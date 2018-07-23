@@ -1,5 +1,6 @@
 struct SchroederNoise{AT} <: IRMeasurement
     sig::AT
+    gain::Float64
     prepad::Int
 end
 
@@ -16,16 +17,16 @@ function schroeder(L; prepad=L)
     # DC component should be real
     X[1] = 1
     x = irfft(X, L)
-    SchroederNoise(x, prepad)
+    gain = 1/maximum(abs.(x))
+    SchroederNoise(x, gain, prepad)
 end
 
 # TODO: add trials support
-stimulus(s::SchroederNoise) = [zeros(s.prepad); s.sig]
+stimulus(s::SchroederNoise) = [zeros(s.prepad); s.sig * s.gain; zeros(length(s.sig))]
 prepadding(s::SchroederNoise) = s.prepad
 
 function _analyze(s::SchroederNoise, response::AbstractArray)
-    L = length(s.sig)
     mapslices(response, 1) do v
-        xcorr(v[s.prepad+1:end], s.sig)[end÷2+1:end]
+        xcorr(v[s.prepad+1:end], s.sig)[end÷2+1:end] / s.gain
     end
 end
