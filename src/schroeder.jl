@@ -9,11 +9,12 @@ Genereate schroeder noise by starting with a flat spectrum and
 randomizing the phases.
 """
 function schroeder(L; prepad=L)
-    # TODO: check amplitude scaling - seems very small
+    # we use our own RNG and seed every time so the result is deterministic.
+    mt = MersenneTwister(0)
     N = L÷2+1
     X = ones(Complex128, N)
     # set phases to be uniform random in [-π,π]
-    @. X *= exp(im*π*(rand()*2-1))
+    @. X *= exp(im*π*(rand(mt)*2-1))
     # DC component should be real
     X[1] = 1
     x = irfft(X, L)

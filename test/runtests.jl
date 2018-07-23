@@ -10,9 +10,6 @@ else
     using Test
 end
 
-# so our tests are deterministic
-srand(0)
-
 function testmeasure(measfunc)
     meas = measfunc(8192)
     stim = stimulus(meas)
@@ -117,6 +114,13 @@ end
                         "window. Check your test signal is long enough for ",
                         "the response\n")
 end
+
+@testset "schroeder - deterministic output" ExtendedTestSet begin
+    m = schroeder(32)
+    # writedlm("$(@__DIR__)/data/schroeder32.csv", stimulus(m))
+    @test stimulus(m) == vec(readdlm("$(@__DIR__)/data/schroeder32.csv"))
+end
+
 # not working right now. See source for `analyze(::ExpSweep, ...) for details
 # @testset "Nonlinearity detection" begin
 #     L = 4096
