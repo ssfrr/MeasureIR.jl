@@ -95,7 +95,7 @@ end
     L = 4096
     meas = expsweep(L)
     stim = stimulus(meas)
-    @test indmax(analyze(meas, stim)) == 1
+    @test indmax(analyze(meas, stim, warn=false)) == 1
     @test indmax(analyze(meas, stim, noncausal=true)) == L+1
 end
 
@@ -140,9 +140,9 @@ end
         @test length(seq.A) == L
         @test length(seq.B) == L
         @test stimulus(seq) == [zeros(L);
-                                seq.amp .* seq.A;
+                                seq.gain .* seq.A;
                                 zeros(L);
-                                seq.amp .* seq.B;
+                                seq.gain .* seq.B;
                                 zeros(L)]
     end
 
@@ -153,9 +153,7 @@ end
     @test golay(16) == golay(16)
     @test golay(16) != golay(8)
 
-    # default amplitude is 1/2.2
-    @test maximum(stimulus(golay(16))) ≈ 1/2.2
-    @test maximum(stimulus(golay(16, amp=1.0))) ≈ 1.0
+    @test maximum(stimulus(golay(16, gain=1.0))) ≈ 1.0
 
     # can set the bandwidth
     bwlim = golay(1024, upsample=2)

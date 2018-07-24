@@ -2,7 +2,7 @@ struct GolaySequence{AT<:AbstractVector} <: IRMeasurement
     A::AT
     B::AT
     prepad::Int
-    amp::Float64
+    gain::Float64
     upsample::Int
 end
 
@@ -23,13 +23,8 @@ a unitful frequency.
 
 ## Options
 
-- `amp::AbstractFloat`: Amplitude of the binary signal. Defaults to 1/2.2, which
-  provides enough headroom so that the analog stimulus has an maximum amplitude
-  of about 1. This means that if you set the gain of your playback system such
-  that a full-scale sinusoid does not distort, the default golay code should not
-  distort either.
-- `prepad::Int`: Defaults to `samples`. Puts a period of silence at the
-  beginning of the measurement that can be used to estimate the noise floor.
+$optiondoc_gain
+$optiondoc_prepad
 - `upsample::Integer`: Defaults to 1, which creates a standard binary golay code
   with energy up to nyquist. Setting this to a higher number will create a
   bandlimited version, so `upsample=2` will only have energy up to 1/2 the
@@ -63,10 +58,10 @@ plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 """
 function golay end
 
-function golay(L; amp=1/2.2, prepad=L, upsample=1)
+function golay(L; gain=golay_gain, prepad=L, upsample=1)
     L = nextpow2(ceil(Int, L/upsample))
     A, B = _golay(L)
-    GolaySequence(A, B, prepad, amp, upsample)
+    GolaySequence(A, B, prepad, gain, upsample)
 end
 
 golay(t::Time, samplerate::Frequency; options...) = golay(Int(t*samplerate); options...)
@@ -75,9 +70,9 @@ golay(t::Time, samplerate; options...) = golay(Int(t/(1s) * samplerate); options
 Base.:(==)(g1::GolaySequence, g2::GolaySequence) = g1.A == g2.A && g1.B == g2.B
 
 function stimulus(sig::GolaySequence)
-    stim = [sig.amp .* sig.A;
+    stim = [sig.gain .* sig.A;
             zeros(length(sig.A));
-            sig.amp .* sig.B;
+            sig.gain .* sig.B;
             zeros(length(sig.B))]
     if sig.upsample != 1
         # force upsampling ratio to be a rational (DSP.jl issue #211)
@@ -128,10 +123,10 @@ function _analyze(sig::GolaySequence, response::AbstractArray)
     # run the cross-correlation, chopping off the non-causal part and the part
     # that would be corrupted if the IR is too long
     irA = mapslices(respA, 1) do v
-        xcorr(v, A)[2L:(3L-1)] ./ (2L * sig.amp)
+        xcorr(v, A)[2L:(3L-1)] ./ (2L * sig.gain)
     end
     irB = mapslices(respB, 1) do v
-        xcorr(v, B)[2L:(3L-1)] ./ (2L * sig.amp)
+        xcorr(v, B)[2L:(3L-1)] ./ (2L * sig.gain)
     end
     irA + irB
 end

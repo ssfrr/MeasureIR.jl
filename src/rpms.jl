@@ -13,16 +13,14 @@ nondeterministic, so make sure you use the same measurement instance to generate
 and analyze your stimulus.
 
 ## Options
-- `prepad` - Defaults to `samples`, the number of zeros that preceed the stimulus.
-- `gain` - Defaults to 0.231439, which scales the stimulus such that 99.99% of
-  the analog signal should be below -1dBFS. See `scaling.jl` in the MeasureIR
-  repository for details on how this was computed.
+$optiondoc_gain
+$optiondoc_prepad
 
 [1]: Mateljan, I., Signal selection for the room acoustics measurement, 1999,
 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics,
 pp. 199–202.
 """
-function rpms(L; prepad=L, gain=0.231439)
+function rpms(L; prepad=L, gain=rpms_gain)
     N = L÷2+1
     X = ones(Complex128, N)
     # set phases to be uniform random in [0,2π]

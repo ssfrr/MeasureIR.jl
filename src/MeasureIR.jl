@@ -69,6 +69,7 @@ end
 _noisefloor(response::AbstractVector, N) = sum(response[1:N, :].^2, 1) / N
 _noisefloor(response::AbstractMatrix, N) = sum(response[1:N].^2) / N
 
+include("options.jl")
 include("util.jl")
 include("golay.jl")
 include("impulse.jl")
@@ -83,5 +84,6 @@ analyze(sig::IRMeasurement, response::AbstractArray; kwargs...) =
         _analyze(sig, response; kwargs...)
 analyze(sig::IRMeasurement, response::SampleBuf; kwargs...) =
         SampleBuf(_analyze(sig, Float64.(response.data); kwargs...), samplerate(response))
+
 
 end # module

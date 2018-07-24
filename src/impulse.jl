@@ -17,11 +17,10 @@ the stimulus signal gives poor signal-to-noise in the measured impulse response.
 It is included in this package mostly as a reference.
 
 ## Options
-- `gain` - Defaults to 0.89125 (-1dB). Set the gain applied to the stimulus.
-- `prepad` - Defaults to `samples`. The number of samples of silence that
-  preceeds the stimulus.
+$optiondoc_gain
+$optiondoc_prepad
 """
-impulse(L; prepad=L, gain=db2amp(-1)) = Impulse(L, prepad, gain)
+impulse(L; prepad=L, gain=impulse_gain) = Impulse(L, prepad, gain)
 impulse(t::Time, samplerate::Frequency; kwargs...) = impulse(Int(t*samplerate); kwargs...)
 impulse(t::Time, samplerate; kwargs...) = impulse(Int(t/(1s) * samplerate); kwargs...)
 

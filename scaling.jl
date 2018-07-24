@@ -23,24 +23,20 @@ rawsig(g::MeasureIR.GolaySequence) = [g.A; g.B]
 rawsig(g::MeasureIR.IRMeasurement) = g.sig
 
 data = Dict()
-for f in [expsweep, golay, mls, schroeder]
+for f in [expsweep, golay, mls, rpms]
     fname = split(string(f),".")[2]
-    data[f] = Float64[]
-    # we could just use a single long one, but it's also interesting to see
-    # how they change at different signal lengths. (try plotting them)
-    for N in 2.^(12:20)
-        m = f(N)
-        thresh = percentilethresh(resample(rawsig(m), 8//1), 99.99)
-        println("$fname - $N: $thresh")
-        push!(data[f], thresh)
-    end
+    m = f(2^24)
+    thresh = percentilethresh(resample(rawsig(m), 8//1), 99.99)
+    data[f] = thresh
+    print(".")
 end
-
-using DSP
+println()
 
 ref = db2amp(-1)
+println("===================")
 println("Impulse Gain: ", ref)
-println("ExpSweep Gain: ", ref / data[expsweep][end])
-println("Golay Gain: ", ref / data[golay][end])
-println("MLS Gain: ", ref / data[mls][end])
-println("Schroeder Gain: ", ref / data[schroeder][end])
+println("ExpSweep Gain: ", ref / data[expsweep])
+println("Golay Gain: ", ref / data[golay])
+println("MLS Gain: ", ref / data[mls])
+println("RPMS Gain: ", ref / data[rpms])
+println("===================")

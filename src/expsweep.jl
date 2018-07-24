@@ -2,10 +2,11 @@ struct ExpSweep{AT} <: IRMeasurement
     sig::AT
     w1::Float64
     w2::Float64
+    gain::Float64
     prepad::Int
 end
 
-ExpSweep(sig, w1, w2, pp) = ExpSweep(sig, Float64(w1), Float64(w2), pp)
+ExpSweep(sig, w1, w2, g, pp) = ExpSweep(sig, Float64(w1), Float64(w2), Float64(g), pp)
 
 prepadding(e::ExpSweep) = e.prepad
 
@@ -21,11 +22,12 @@ default minimum frequency of 0.0025 rad/sample corresponds to about 19Hz at
 
 ## Options
 
+$optiondoc_prepad
+$optiondoc_gain
 - `fadein`
 - `fadeout`
 - `fade`
 - `optimize`
-- `prepad`
 - `func`
 
 [1]: Farina, Angelo, Simultaneous measurement of impulse response and distortion
@@ -37,6 +39,7 @@ function expsweep(L, minfreq=0.0025, maxfreq=π;
         fadein=round(Int, min(L/2, 200/minfreq)),
         fadeout=round(Int, min(L/4, 800/maxfreq)),
         fade=nothing,
+        gain=expsweep_gain,
         # for long sweeps we don't need long silence
         prepad=min(L, 4*48000),
         optimize=true, func=sin)
@@ -52,7 +55,7 @@ function expsweep(L, minfreq=0.0025, maxfreq=π;
     winout = 0.5-0.5*cos.(linspace(π, 0, fadeout))
     sig[1:fadein] .*= winin
     sig[(end-fadeout+1):end] .*= winout
-    ExpSweep(sig, minfreq, maxfreq, prepad)
+    ExpSweep(sig, minfreq, maxfreq, gain, prepad)
 end
 
 function expsweep(t::Time, samplerate,
@@ -95,9 +98,9 @@ function _optimizew1(w1, w2, L)
 end
 
 stimulus(m::ExpSweep) = [zeros(m.prepad);
-                         m.sig;
+                         m.sig * m.gain;
                          zeros(length(m.sig))]
-# TODO: move noncausal argument to here
+
 """
     function analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
 
@@ -126,13 +129,12 @@ function _analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
     # ripple. Generally things should be pretty flat if there's a fade in/out
     # TODO: seems kinda silly to compute the whole FFT just to look at the
     # center frequency. We could just do the dot product of that freq
-    roundtrip = xcorr(m.sig, invfilt)
-    centeridx = round(Int, (w1 + (w2-w1)/2)/π*(length(roundtrip)÷2+1))
+    roundtrip = xcorr(m.sig * m.gain, invfilt)
+    centeridx = round(Int, (w1 + (w2-w1)/2)/π*(length(roundtrip)/2))
     scale = abs(rfft(roundtrip)[centeridx])
-    invfilt /= scale
 
     ir = mapslices(response, 1) do v
-        xcorr(v[m.prepad+1:end], invfilt)
+        xcorr(v[m.prepad+1:end], invfilt) ./ scale
     end
 
     # keep the full IR (including non-causal parts representing nonlinearities)
