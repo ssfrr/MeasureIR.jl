@@ -14,7 +14,7 @@ For this reason it is more common to use other signals like pseudo-random noise 
 
 Measuring an impulse response takes place in the following steps:
 
-1. Create a measurement (currently supports `golay`, `expsweep`, `impulse`, `mls`, and `schroeder`)
+1. Create a measurement. The library currently supports `golay`, `expsweep`, `impulse`, `mls` (maximum-length sequence), and `rpms` (random phase multisine).
 2. Generate a test signal for the measurement using `stimulus(m)`, where `m` is a measurement. This signal is a single-channel time-domain signal that could be played directly through a speaker/transducer, or saved to a file for later measurement.
 3. Convolve the test signal with your system. This could be by playing the signal through a speaker into a room you're measuring, or using Julia's built-in `conv` function for testing. The result of this step should be a (possibly multichannel) response signal.
 4. Analyze the system response to generate the impulse response. The form of this is `analyze(m, response)` where `m` is your measurement object and `response` is the measured output of your system in response to the stimuli.
