@@ -4,10 +4,10 @@ using Compat: @warn
 using Unitful: s, Hz, Time, Frequency
 using SampledSignals: SampleBuf, samplerate
 using Roots: find_zero
-using DSP: hanning, FIRFilter, filt
+using DSP: hanning, FIRFilter, filt, db2amp
 
 export stimulus, analyze, noisefloor, prepadding, snr
-export expsweep, golay, mls, schroeder, impulse
+export expsweep, golay, mls, rpms, impulse
 
 """
 Abstract supertype for impulse response measurements. Subtypes should define a
@@ -74,7 +74,7 @@ include("golay.jl")
 include("impulse.jl")
 include("expsweep.jl")
 include("mls.jl")
-include("schroeder.jl")
+include("rpms.jl")
 
 # workaround needed because DSP.jl doesn't handle SampleBufs
 # and Float32s well. We dispatch to an internal _analyze to avoid method

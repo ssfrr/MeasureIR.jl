@@ -86,7 +86,7 @@ end
 # easily
 
 @testset "Standard Measurements" begin
-    for f in [expsweep, golay, mls, schroeder, impulse]
+    for f in [expsweep, golay, mls, rpms, impulse]
         testmeasure(f)
     end
 end
@@ -113,12 +113,6 @@ end
     @test out == string("Warning: nonsilent samples past end of analysis ",
                         "window. Check your test signal is long enough for ",
                         "the response\n")
-end
-
-@testset "schroeder - deterministic output" ExtendedTestSet begin
-    m = schroeder(32)
-    # writedlm("$(@__DIR__)/data/schroeder32.csv", stimulus(m))
-    @test stimulus(m) == vec(readdlm("$(@__DIR__)/data/schroeder32.csv"))
 end
 
 # not working right now. See source for `analyze(::ExpSweep, ...) for details
