@@ -34,3 +34,14 @@ striphz(f) = f
 striphz(f::Frequency{T}) where T = T(f/Hz)
 stripsec(t) = t
 stripsec(t::Time{T}) where T = T(t/s)
+
+# generates a 1000kHz pilot tone
+function makepilot()
+end
+
+# shared documentation for pilotlen arg
+doc_pilotlen = """`pilotlen` is the length of an initial pilot signal (defaults to 0). It can be
+specified as an integer number of samples or a length of time (if the samplerate
+is also given). If the samplerate is known the pilot tone is 1000Hz. If not it
+will be 0.05 radians/sample, which ends up being about 382Hz at 48000.
+"""

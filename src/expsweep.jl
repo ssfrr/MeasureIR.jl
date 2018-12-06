@@ -3,11 +3,16 @@ struct ExpSweep{AT} <: IRMeasurement
     w1::Float64
     w2::Float64
     prepad::Int
+    pilotlen::Int
 end
 
-ExpSweep(sig, w1, w2, pp) = ExpSweep(sig, Float64(w1), Float64(w2), pp)
+ExpSweep(sig, w1, w2, pp, pl) = ExpSweep(sig, Float64(w1), Float64(w2), pp, pl)
 
+# gives number of samples of prepadding
 prepadding(e::ExpSweep) = e.prepad
+
+# gives number of samples of pilot tone
+pilotlength(e::ExpSweep) = e.pilotlen
 
 """
     expsweep(samples, minfreq=0.0025, maxfreq=π; options...)
@@ -27,6 +32,9 @@ default minimum frequency of 0.0025 rad/sample corresponds to about 19Hz at
 - `optimize`
 - `prepad`
 - `func`
+- `pilotlen`
+
+$doc_pilotlen
 
 [1]: Farina, Angelo, Simultaneous measurement of impulse response and distortion
      with a swept-sine technique, Audio Engineering Society Convention 108 (2000).

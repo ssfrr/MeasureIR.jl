@@ -2,6 +2,8 @@ using MeasureIR
 using Plots, PortAudio
 using Unitful: s, Hz, kHz
 using DSP
+using FileIO
+using LibSndFile: load, save
 
 """
     chunkminmax(data, nchunks)
@@ -27,12 +29,9 @@ function chunkminmax(data, nchunks)
     upper = zeros(nchunks, C)
 
     chunksize = floor(Int, N/nchunks)
-    @show nchunks
     for i in 1:nchunks
         offset = (i-1) * chunksize
         n = min(chunksize, N-offset)
-        @show i
-        @show offset
         lower[i, :] = minimum(view(data, (1:n) + offset, :), 1)
         upper[i, :] = maximum(view(data, (1:n) + offset, :), 1)
     end
@@ -40,65 +39,62 @@ function chunkminmax(data, nchunks)
     (0:(nchunks-1))*chunksize+1, lower, upper
 end
 
-function sigplot(sig, sr=1)
+function sigplot(sig, sr=1; kwargs...)
     i,l,u = chunkminmax(sig, 1000)
-    plot(i/sr, l, fillrange=u, alpha=0.8)
+    plot(i/sr, l, fillrange=u, alpha=0.8; kwargs...)
+end
+
+function sigplot!(sig, sr=1; kwargs...)
+    i,l,u = chunkminmax(sig, 1000)
+    plot!(i/sr, l, fillrange=u, alpha=0.8; kwargs...)
 end
 
 function measure(measurement)
     # wait so we don't get the sound of the keypress
     sleep(1)
     str = PortAudioStream(2, 2; synced=true)
-    sig = stimulus(measurement)
+    sig = stimulus(measurement) * 0.5
     @async write(str, sig)
     resp = read(str, length(sig))
     close(str)
     resp
 end
 
-swp = expsweep(5*44100; nonlinear=true)
-swp = golay(1*44100)
-swp = mls(44100)
-resp = convert(Array{Float64}, measure(swp))
-ir = analyze(swp, resp)
-sigplot(resp, 44100)
-sigplot(ir, 44100)
-size(ir)
-plot(linspace(0,22050, size(ir,1)÷2+1), abs.(rfft(ir[:, 2])), legend=false)
+resps = []
+stims = []
+irs = []
+for f in [expsweep, golay, impulse, mls, schroeder]
+    meas = f(5*48000)
+    resp = measure(meas)
+    push!(resps, resp)
+    push!(irs, analyze(meas, resp))
+end
+for (f, resp) in zip([expsweep, golay, impulse, mls, schroeder], resps)
+    meas = f(5*48000)
+    push!(irs, analyze(meas, resp))
+end
+
+sigplot(irs[5])
+sigplot(stimulus(schroeder(5*48000)))
+sigplot(resp)
+sigplot(analyze(schroeder(5*48000), resp[:, 2]))
+sigplot(xcorr(Float64.(resp[:, 2].data), stimulus(schroeder(5*48000))))
+
+for (resp, stim) in zip(resps, stims)
+    LibSndFile.save("/home/sfr/.julia/v0.6/MeasureIR/$stim.wav", resp)
+end
+
+resp = LibSndFile.load("/home/sfr/.julia/v0.6/MeasureIR/schroeder.wav")
 
 
+stims = ["expsweep", "golay", "impulse", "mls", "schroeder"]
 
-testir = [zeros(100); (rand(100)*2-1) .* e.^(linspace(0,-10,100))]
-plot(testir)
-
-g = mls(44100)
-stim = stimulus(g)
-ir = analyze(g, conv(stim, testir))
-plot(ir[1:500]*2.2)
+testir = randn(1000) .* exp(linspace(0,-10,1000))
+m = schroeder(5*48000)
+sigplot(analyze(m, conv(stimulus(m), testir))[1:1000])
+sqrt(sum(stimulus(m).^2))
+maximum(testir) / maximum(analyze(m, conv(stimulus(m), testir))[1:1000]/(5*48000))
 plot!(testir)
 
-stim = rand(8)
-# resp = stim
-resp = [stim; zeros(10)]
-# plot(stim)
-# plot(resp)
-
-length(timexcorr(resp,stim))
-plot(xcorr(resp,stim))
-plot(causalxcorr(resp,stim))
-vline!([length(stim)])
-
-causalxcorr(resp, stim) = xcorr(resp, stim)[max(length(resp), length(stim)):end]
-
-function timexcorr(u,v)
-    out = zeros(length(u)+length(v)-1)
-    i = 1
-    for τ in -length(v)+1:length(u)-1
-        low = max(0, τ)
-        high = min(length(u)-1, length(v)+τ-1)
-        out[i] = sum((u[t+1]*conj(v[t-τ+1]) for t in low:high))
-        i += 1
-    end
-
-    out
-end
+sigplot(stimulus(m))
+sigplot(analyze(meas, resp))
