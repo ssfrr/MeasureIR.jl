@@ -1,28 +1,29 @@
-struct ExpSweep{AT} <: IRMeasurement
+struct ExpSweep{AT, SR} <: IRMeasurement
     sig::AT
     w1::Float64
     w2::Float64
     gain::Float64
-    prepad::Int
+    samplerate::SR
 end
 
-ExpSweep(sig, w1, w2, g, pp) = ExpSweep(sig, Float64(w1), Float64(w2), Float64(g), pp)
-
-prepadding(e::ExpSweep) = e.prepad
+# the default constructor doesn't auto-convert the non-parametric arguments
+ExpSweep(sig::T, w1, w2, g, sr::SR) where {T, SR} = ExpSweep{T, SR}(sig, w1, w2, g, sr)
 
 """
-    expsweep(samples, minfreq=0.0025, maxfreq=π; options...)
-    expsweep(seconds::Time, samplerate, minfreq=20, maxfreq=samplerate/2; options...)
+    expsweep(length; options...)
 
 Create an impulse response measurement using an exponential sinusoid sweep from
-`minfreq` to `maxfreq`, over `samples` samples, following the procedure from
-[1]. If no samplerate is given then frequencies are given as rad/sample. The
-default minimum frequency of 0.0025 rad/sample corresponds to about 19Hz at
-48kHz.
+`minfreq` to `maxfreq`, following the procedure from [1]. Durations and
+frequencies can be given with or without Unitful units. With the default
+`samplerate` of `1` durations can be interpreted as samples and frequencies are
+in cycles/sample. The default minimum frequency of 0.0004 cycles/sample
+corresponds to about 19Hz at 48kHz.
 
 ## Options
 
-$optiondoc_prepad
+- `samplerate=1`
+- `minfreq=0.0004`
+- `maxfreq=0.5`
 $optiondoc_gain
 - `fadein`
 - `fadeout`
@@ -30,42 +31,73 @@ $optiondoc_gain
 - `optimize`
 - `func`
 
+## Examples
+
+```julia
+using MeasureIR
+
+# generate a 10000-sample sweep
+expsweep(10000)
+
+# generate a 10s sweep at 48kHz samplerate
+using Unitful: s, kHz
+expsweep(10s; samplerate=48kHz)
+```
+
 [1]: Farina, Angelo, Simultaneous measurement of impulse response and distortion
-     with a swept-sine technique, Audio Engineering Society Convention 108 (2000).
+with a swept-sine technique, Audio Engineering Society Convention 108 (2000).
 """
-function expsweep(L, minfreq=0.0025, maxfreq=π;
-        # fade times chosen heuristically to be pretty reasonable
-        # we could definitely be smarter here, especially for small L
-        fadein=round(Int, min(L/2, 200/minfreq)),
-        fadeout=round(Int, min(L/4, 800/maxfreq)),
+# TODO: review Novak: https://ant-novak.com/posts/research/2015-10-30_JAES_Swept/
+# it was recommended by Gordon
+function expsweep(length;
+        samplerate = 1,
+        minfreq=0.0004*samplerate,
+        maxfreq=0.5*samplerate,
+        # default fades are computed below
+        fadein=nothing,
+        fadeout=nothing,
         fade=nothing,
         gain=expsweep_gain,
         # for long sweeps we don't need long silence
-        prepad=min(L, 4*48000),
-        optimize=true, func=sin)
-    if optimize
-        minfreq = _optimizew1(minfreq, maxfreq, L)
-    end
+        prepad=0,
+        optimize=true,
+        func=sin)
+
+    w1 = uconvert(NoUnits, minfreq * 2π / samplerate)
+    w2 = uconvert(NoUnits, maxfreq * 2π / samplerate)
+    L = round(Int, uconvert(NoUnits, length*samplerate))
+
     if fade !== nothing
+        if fadein !== nothing || fadeout !== nothing
+            throw(ArgumentError("`fade` argument cannot be used with `fadein` or `fadeout`"))
+        end
         fadein = fade
         fadeout = fade
     end
-    sig = _expsweep(func, L, minfreq, maxfreq)
-    winin = 0.5-0.5*cos.(linspace(0, π, fadein))
-    winout = 0.5-0.5*cos.(linspace(π, 0, fadeout))
-    sig[1:fadein] .*= winin
-    sig[(end-fadeout+1):end] .*= winout
-    ExpSweep(sig, minfreq, maxfreq, gain, prepad)
-end
 
-function expsweep(t::Time, samplerate,
-                  minfreq=20, maxfreq=striphz(samplerate)/2;
-                  options...)
-    sr = striphz(samplerate)
-    w1 = striphz(minfreq) * 2π / sr
-    w2 = striphz(maxfreq) * 2π / sr
-    L = Int(stripsec(t) * sr)
-    expsweep(L, w1, w2; options...)
+    # default fade times chosen heuristically to be pretty reasonable
+    # we could definitely be smarter here, especially for small L
+    if fadein === nothing
+        f1 = round(Int, min(L/2, 200/w1))
+    else
+        f1 = round(Int, uconvert(NoUnits, fadein*samplerate))
+    end
+
+    if fadeout === nothing
+        f2 = round(Int, min(L/4, 800/w2))
+    else
+        f2 = round(Int, uconvert(NoUnits, fadeout*samplerate))
+    end
+
+    if optimize
+        w1 = _optimizew1(w1, w2, L)
+    end
+    sig = _expsweep(func, L, w1, w2)
+    winin = 0.5 .- 0.5*cos.(range(0, π; length=f1))
+    winout = 0.5 .- 0.5*cos.(range(π, 0; length=f2))
+    sig[1:f1] .*= winin
+    sig[(end-f2+1):end] .*= winout
+    ExpSweep(sig, w1, w2, gain, samplerate)
 end
 
 function _expsweep(func, L, minfreq, maxfreq)
@@ -75,8 +107,7 @@ function _expsweep(func, L, minfreq, maxfreq)
     T = L
     t = 0:(T-1)
     @. func(w1*T /
-           log(w2/w1) *
-           (exp(t/T * log(w2/w1))-1))
+           log(w2/w1) * (exp(t/T * log(w2/w1))-1))
 end
 
 """
@@ -97,9 +128,10 @@ function _optimizew1(w1, w2, L)
     fnew/L
 end
 
-stimulus(m::ExpSweep) = [zeros(m.prepad);
-                         m.sig * m.gain;
-                         zeros(length(m.sig))]
+# SampledSignals doesn't accept unitful values for samplerates, so strip it
+stimulus(m::ExpSweep{AT, <:Frequency}) where AT = SampleBuf(m.sig * m.gain,
+                                       uconvert(NoUnits, m.samplerate*s))
+stimulus(m::ExpSweep{AT, <:Real}) where AT = SampleBuf(m.sig * m.gain, m.samplerate)
 
 """
     function analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
@@ -133,8 +165,8 @@ function _analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
     centeridx = round(Int, (w1 + (w2-w1)/2)/π*(length(roundtrip)/2))
     scale = abs(rfft(roundtrip)[centeridx])
 
-    ir = mapslices(response, 1) do v
-        xcorr(v[m.prepad+1:end], invfilt) ./ scale
+    ir = mapslices(response, dims=1) do v
+        xcorr(v, invfilt) ./ scale
     end
 
     # keep the full IR (including non-causal parts representing nonlinearities)

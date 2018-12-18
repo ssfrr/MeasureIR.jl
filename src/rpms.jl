@@ -22,7 +22,7 @@ pp. 199–202.
 """
 function rpms(L; prepad=L, gain=rpms_gain)
     N = L÷2+1
-    X = ones(Complex128, N)
+    X = ones(ComplexF64, N)
     # set phases to be uniform random in [0,2π]
     @. X *= exp(im*2π*rand())
     # DC component should be zero
@@ -41,7 +41,7 @@ stimulus(s::RPMS) = [zeros(s.prepad); s.sig * s.gain; zeros(length(s.sig))]
 prepadding(s::RPMS) = s.prepad
 
 function _analyze(s::RPMS, response::AbstractArray)
-    mapslices(response, 1) do v
+    mapslices(response, dims=1) do v
         xcorr(v[s.prepad+1:end], s.sig)[end÷2+1:end] / length(s.sig) / s.gain
     end
 end

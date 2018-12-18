@@ -1,37 +1,44 @@
-struct GolaySequence{AT<:AbstractVector} <: IRMeasurement
+# TODO: we could get away with removing samplerate from here and storing
+# the A and B signals as SampleBufs
+struct GolaySequence{AT<:AbstractVector, SR} <: IRMeasurement
     A::AT
     B::AT
-    prepad::Int
+    decay::Int
     gain::Float64
-    upsample::Int
+    bandlimit::Int
+    samplerate::SR
 end
 
-prepadding(g::GolaySequence) = g.prepad
+GolaySequence(A::AT, B::AT, decay, gain, bandlimit, sr::SR) where {AT, SR} =
+    GolaySequence{AT, SR}(A, B, decay, gain, bandlimit, sr)
 
 """
-    golay(samples; options...)
-    golay(seconds::Time, samplerate; options...)
-    golay(seconds::Time, samplerate::Frequency; options...)
+    golay(length; options...)
 
-Create an IR measurement using a complimentary Golay sequence, assuming that the
-system being measured has a response less than length `samples`. The actual
-length of the generated stimulus sequence might be greater than `samples`.
+Create an IR measurement using a complimentary Golay sequence following the
+method from [1], assuming that the system being measured has a response less
+than length `samples`. The actual length of the generated stimulus sequence
+might be greater than `samples`.
 
 You can also specify the length with a duration in seconds along with a
 sampling rate. The sampling rate can either be specified as a raw number or
 a unitful frequency.
 
+TODO: update length docs
+
 ## Options
 
 $optiondoc_gain
-$optiondoc_prepad
-- `upsample::Integer`: Defaults to 1, which creates a standard binary golay code
+- `bandlimit::Integer`: Defaults to 1, which creates a standard binary golay code
   with energy up to nyquist. Setting this to a higher number will create a
-  bandlimited version, so `upsample=2` will only have energy up to 1/2 the
+  bandlimited version, so `bandlimit=2` will only have energy up to 1/2 the
   nyquist frequency. Often the upper frequencies of the impulse response are
   time-variant, so they may not be accurately measurable anyways. Decreasing the
   bandwidth can also help avoid nonlinearities due to slew-rate limiting in the
   playback system.
+- `decay`: Specify how long you expect the system decay length to be. The
+  simulus will wait this long between the A and B parts. Note that this should
+  include any delay introduced by the system or measurement process.
 
 ## Example
 
@@ -55,31 +62,41 @@ ir = analyze(meas, output)
 
 plot([irsim[1:100], ir[1:100]], labels=["Convolved IR", "Measured IR"])
 ```
+
+
+[1]: Berdahl, Edgar J. and Julius O. Smith III, "Transfer Function Measurement
+Toolbox", REALSIMPLE Project. Released 2008-06-05 under the Creative Commons
+License (Attribution 2.5) Center for Computer Research in Music and Acoustics
+(CCRMA), Stanford University. Accessed 2018 from
+https://ccrma.stanford.edu/realsimple/imp_meas/Golay_Code_Theory.html
 """
 function golay end
 
-function golay(L; gain=golay_gain, prepad=L, upsample=1)
-    L = nextpow2(ceil(Int, L/upsample))
+function golay(length; decaylength=length, samplerate=1, gain=golay_gain, bandlimit=1)
+    L = ceil(Int, uconvert(NoUnits, length*samplerate/bandlimit))
+    dec = ceil(Int, uconvert(NoUnits, decaylength*samplerate))
+    L = nextpow(2, L)
     A, B = _golay(L)
-    GolaySequence(A, B, prepad, gain, upsample)
+    GolaySequence(A, B, dec, gain, bandlimit, samplerate)
 end
-
-golay(t::Time, samplerate::Frequency; options...) = golay(Int(t*samplerate); options...)
-golay(t::Time, samplerate; options...) = golay(Int(t/(1s) * samplerate); options...)
 
 Base.:(==)(g1::GolaySequence, g2::GolaySequence) = g1.A == g2.A && g1.B == g2.B
 
 function stimulus(sig::GolaySequence)
     stim = [sig.gain .* sig.A;
-            zeros(length(sig.A));
-            sig.gain .* sig.B;
-            zeros(length(sig.B))]
-    if sig.upsample != 1
+            zeros(sig.decay);
+            sig.gain .* sig.B]
+    if sig.bandlimit != 1
         # force upsampling ratio to be a rational (DSP.jl issue #211)
-        stim = filt(FIRFilter(sig.upsample//1), stim)
+        # TODO: this is a bit broken because it doesn't handle the warm-up
+        # in the convolution. but `resample` doesn't give you exactly the
+        # right number of samples, so this needs to be looked into.
+        # TODO: also I need to think about how we're handling the decay time
+        # here, i.e. whether it shuold be before of after the resampling
+        stim = filt(FIRFilter(sig.bandlimit//1), stim)
     end
 
-    [zeros(sig.prepad); stim]
+    stim
 end
 
 # naive implementation, allocates a lot, but runs reasonably fast
@@ -93,15 +110,16 @@ function _golay(L)
 end
 
 function _analyze(sig::GolaySequence, response::AbstractArray)
-    # stimuli has 2 measurements, each with a length-L golay sequence
-    # and length-L silence.
-    L = Int(length(sig.A) * sig.upsample)
-    np = noisefloor(sig, response)
+    # stimuli has 2 measurements, each with a length-L golay sequence. They are
+    # separated by `sig.decay` samples of silence.
+    L = Int(length(sig.A) * sig.bandlimit)
+    # np = noisefloor(sig, response)
     # we chop off the silence part - there's nothing causal for us there
-    respA = timeslice(response, sig.prepad+(1:2L))
-    @views respB = truncresponse(
-            timeslice(response, sig.prepad+2L+1:size(response, 1)), 2L, np)
-    if sig.upsample != 1
+    respA = timeslice(response, 1 : L+sig.decay)
+    respB = timeslice(response, L+sig.decay+1 : size(response, 1))
+    # @views respB = truncresponse(
+    #         timeslice(response, L+sig.decay+1 : size(response, 1)), 2L, np)
+    if sig.bandlimit != 1
         # we can use the full-bandwidth zero-stuffed signal for the
         # cross-correlation, so that any weirdness caused by our upsampling
         # procedure only affects us once, and we get a nice bandlimited
@@ -112,21 +130,27 @@ function _analyze(sig::GolaySequence, response::AbstractArray)
         # being a bunch of pre-ringing garbage when using the bandlimited
         # version. Not sure what that's about. Also this way it doesn't cut off
         # the beginning of the bandlimited impulse when there's no delay.
-        A = zerostuff(sig.A, Int(sig.upsample)) * sig.upsample
-        B = zerostuff(sig.B, Int(sig.upsample)) * sig.upsample
-        # A = filt(FIRFilter(sig.upsample), sig.A)
-        # B = filt(FIRFilter(sig.upsample), sig.B)
+        A = zerostuff(sig.A, Int(sig.bandlimit)) * sig.bandlimit
+        B = zerostuff(sig.B, Int(sig.bandlimit)) * sig.bandlimit
+        # A = filt(FIRFilter(sig.bandlimit), sig.A)
+        # B = filt(FIRFilter(sig.bandlimit), sig.B)
     else
         A = sig.A
         B = sig.B
     end
     # run the cross-correlation, chopping off the non-causal part and the part
     # that would be corrupted if the IR is too long
-    irA = mapslices(respA, 1) do v
-        xcorr(v, A)[2L:(3L-1)] ./ (2L * sig.gain)
+    irA = mapslices(respA, dims=1) do v
+        # warning - xcorr pads the inputs to equal length, so the total result
+        # length should be 2*maxlen-1
+        xc = xcorr(v, A) / (2L * sig.gain)
+        time0 = (length(xc)+1)÷2-1
+        xc[time0 .+ (1:sig.decay)]
     end
-    irB = mapslices(respB, 1) do v
-        xcorr(v, B)[2L:(3L-1)] ./ (2L * sig.gain)
+    irB = mapslices(respB, dims=1) do v
+        xc = xcorr(v, B) / (2L * sig.gain)
+        time0 = (length(xc)+1)÷2-1
+        xc[time0 .+ (1:sig.decay)]
     end
     irA + irB
 end

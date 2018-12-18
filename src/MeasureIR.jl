@@ -1,10 +1,11 @@
 module MeasureIR
 
 using Compat: @warn
-using Unitful: s, Hz, Time, Frequency
+using Unitful: s, Hz, Time, Frequency, uconvert, NoUnits
 using SampledSignals: SampleBuf, samplerate
 using Roots: find_zero
-using DSP: hanning, FIRFilter, filt, db2amp
+using DSP: hanning, FIRFilter, filt, db2amp, xcorr
+using FFTW: rfft, irfft
 
 export stimulus, analyze, noisefloor, prepadding, snr
 export expsweep, golay, mls, rpms, impulse
@@ -66,8 +67,8 @@ function noisefloor(sig::IRMeasurement, response::AbstractArray)
     _noisefloor(response, N)
 end
 
-_noisefloor(response::AbstractVector, N) = sum(response[1:N, :].^2, 1) / N
-_noisefloor(response::AbstractMatrix, N) = sum(response[1:N].^2) / N
+_noisefloor(response::AbstractMatrix, N) = sum(response[1:N, :].^2, dims=1) / N
+_noisefloor(response::AbstractVector, N) = sum(response[1:N].^2) / N
 
 include("options.jl")
 include("util.jl")

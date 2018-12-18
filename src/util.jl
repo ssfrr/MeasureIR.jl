@@ -10,7 +10,7 @@ Warning can be disabled with the kwarg `warn=false`
 function truncresponse(response::AbstractArray, L, noisepower=eps(); warn=true)
     RL = size(response, 1)
     if RL > L
-        truncenergy = sum(response[L+1:end, :].^2, 1)
+        truncenergy = sum(response[L+1:end, :].^2; dims=1)
         headroom = 1.05 # 5% over noise
         atol = sqrt(eps()) # absolute tolerance (for when noise floor = 0.0)
         if warn && any(truncenergy .> (atol + noisepower * headroom) * (RL-L))

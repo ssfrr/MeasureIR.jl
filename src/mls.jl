@@ -4,19 +4,24 @@ struct MLS{AT} <: IRMeasurement
     prepad::Int
 end
 
+MLS(sig::AT, gain, prepad) where AT = MLS{AT}(sig, gain, prepad)
+
 prepadding(m::MLS) = m.prepad
 
 """
     mls(samples; options...)
 
-Generate a maximum-length sequence (MLS).
+Generate a maximum-length sequence (MLS), also known as Schroeder's method.
+Actual length is `samples-1`.
 
 ## Options:
 $optiondoc_gain
 $optiondoc_prepad
 """
+# TODO: this is not the right way to do MLS - we should be doing 2 or more
+# repetitions of the stimulus, than doing a circular correlation.
 function mls(L; gain=mls_gain, prepad=default_prepad)
-    N = Int(log2(nextpow2(L)))
+    N = Int(log2(nextpow(2, L)))
     1 <= N <= length(mlspolys) || throw(ArgumentError("N must be positive and <= $(length(mlspolys))"))
     poly = mlspolys[N]
     # where we'll keep the state used to compute the next value. The
@@ -29,7 +34,7 @@ function mls(L; gain=mls_gain, prepad=default_prepad)
     out = zeros(2^N-1)
     # initialize our output array to match the register above - with only the
     # most recent sample as 1.
-    out[1:N-1] = -1
+    out[1:N-1] .= -1
     out[N] = 1
     for i in N+1:length(out)
         nextval = UInt64(count_ones(register & taps)) & 0x0000000000000001
@@ -40,11 +45,11 @@ function mls(L; gain=mls_gain, prepad=default_prepad)
     MLS(out, gain, prepad)
 end
 
-stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.gain; zeros(length(m.sig))]
+stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.gain]
 
 function _analyze(m::MLS, response::AbstractArray)
     L = length(m.sig)
-    mapslices(response, 1) do v
+    mapslices(response, dims=1) do v
         # compensate for the amplitude drop
         xcorr(v[m.prepad+1:end], m.sig)[end÷2+1:end] ./ L / m.gain
     end

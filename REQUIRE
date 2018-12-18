@@ -1,3 +1,7 @@
 julia 0.6
 Unitful
 Compat
+Roots
+SampledSignals
+DSP
+FFTW
