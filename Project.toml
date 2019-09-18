@@ -1,0 +1,24 @@
+name = "MeasureIR"
+uuid = "4e68e94c-cd2d-5c3b-bae2-1718e3447baa"
+
+[deps]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
+DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
+Roots = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+SampledSignals = "bd7594eb-a658-542f-9e75-4c4d8908c167"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[compat]
+julia = "≥ 0.6.0"
+
+[extras]
+Suppressor = "fd094767-a336-5f1f-9728-57cf17d0bbfb"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestSetExtensions = "d40d4617-1dd8-5232-bf05-d2d0ca0a4896"
+
+[targets]
+test = ["Test", "TestSetExtensions", "Suppressor"]

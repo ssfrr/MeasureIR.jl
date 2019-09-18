@@ -4,9 +4,12 @@ using Compat: @warn
 using Unitful: s, Hz, Time, Frequency, uconvert, NoUnits
 using SampledSignals: SampleBuf, samplerate
 using Roots: find_zero
-using DSP: DSP, hanning, FIRFilter, filt, db2amp, xcorr, nextfastfft
+using DSP: DSP, gaussian, hanning, hilbert
+using DSP: FIRFilter, filt, db2amp, xcorr, nextfastfft
 using FFTW: rfft, irfft
 using LinearAlgebra: dot
+using Statistics: mean
+using LsqFit: curve_fit
 
 export stimulus, analyze, noisefloor, prepadding, snr
 export expsweep, golay, mls, rpms, impulse
