@@ -1,26 +1,29 @@
 struct MLS{AT} <: IRMeasurement
     sig::AT
+    reps::Int
     gain::Float64
     prepad::Int
 end
 
-MLS(sig::AT, gain, prepad) where AT = MLS{AT}(sig, gain, prepad)
+MLS(sig::AT, reps, gain, prepad) where AT = MLS{AT}(sig, reps, gain, prepad)
 
 prepadding(m::MLS) = m.prepad
 
 """
-    mls(samples; options...)
+    mls(L, reps=2; options...)
 
 Generate a maximum-length sequence (MLS), also known as Schroeder's method.
-Actual length is `samples-1`.
+Actual length is `L-1`. The sequence will be repeated `reps` times, which should
+be at least 2, as only the last `reps-1` repetitions are used.
 
 ## Options:
 $optiondoc_gain
 $optiondoc_prepad
 """
 # TODO: this is not the right way to do MLS - we should be doing 2 or more
-# repetitions of the stimulus, than doing a circular correlation.
-function mls(L; gain=mls_gain, prepad=default_prepad)
+# repetitions of the stimulus, then doing a circular correlation.
+# TODO: add samplerate support
+function mls(L, reps=2; gain=mls_gain, prepad=default_prepad)
     N = Int(log2(nextpow(2, L)))
     1 <= N <= length(mlspolys) || throw(ArgumentError("N must be positive and <= $(length(mlspolys))"))
     poly = mlspolys[N]
@@ -42,16 +45,57 @@ function mls(L; gain=mls_gain, prepad=default_prepad)
         out[i] = float(nextval) * 2 - 1
     end
 
-    MLS(out, gain, prepad)
+    MLS(out, reps, gain, prepad)
 end
 
-stimulus(m::MLS) = [zeros(m.prepad); m.sig*m.gain]
+stimulus(m::MLS) = [zeros(m.prepad); repeat(m.sig, m.reps)*m.gain]
+
+"""
+Perform circular cross-correlation, assuming `u` and `v` are equal length, but
+allowing for the possibility that their length is not amenable to FFT
+processing.
+
+Uses algorithm from:
+
+Daigle, J. N., & Xiang, N. (2006). A specialized fast cross-correlation for
+acoustical measurements using coded sequences. The Journal of the Acoustical
+Society of America, 119(1), 330–335. https://doi.org/10.1121/1.2141236
+
+"""
+function circxcorr(u, v)
+    L = length(u)
+    @assert L == length(v)
+
+    if L == nextfastfft(L)
+        _circxcorr(u,v)
+    else
+        N = nextfastfft(2L)
+        u = DSP._zeropad(u, N)
+        v = DSP._zeropad(v, N)
+        xc = _circxcorr(u,v)
+        xc[1:L] + xc[end-L+1:end]
+    end
+end
+
+"""
+Perform circular cross-correlation, assuming `u` and `v` are vectors of equal
+length and that length is amenable to FFT processing.
+"""
+_circxcorr(u, v) = irfft(rfft(u) .* conj.(rfft(v)), length(u))
 
 function _analyze(m::MLS, response::AbstractArray)
+    if m.reps < 2
+        throw(ArgumentError("Can't perform MLS analysis with only one repetition"))
+    end
     L = length(m.sig)
-    mapslices(response, dims=1) do v
+    avgresp = zeros(L, Base.tail(size(response))...)
+    for rep in 1:m.reps-1
+        avgresp .+= timeslice(response, (1:L) .+ (m.prepad + rep*L))
+    end
+    avgresp ./= (m.reps-1)
+    mapslices(avgresp, dims=1) do v
         # compensate for the amplitude drop
-        xcorr(v[m.prepad+1:end], m.sig)[end÷2+1:end] ./ L / m.gain
+        circxcorr(v, m.sig) ./ L / m.gain
     end
 end
 

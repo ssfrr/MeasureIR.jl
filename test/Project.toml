@@ -1,0 +1,5 @@
+[deps]
+DSP = "717857b8-e6f2-59f4-9121-6e50c889abd2"
+MeasureIR = "1d92ad0d-f520-5482-bb8f-e5ddddeec5c1"
+SampledSignals = "bd7594eb-a658-542f-9e75-4c4d8908c167"
+Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"

@@ -47,21 +47,26 @@ expsweep(10s; samplerate=48kHz)
 [1]: Farina, Angelo, Simultaneous measurement of impulse response and distortion
 with a swept-sine technique, Audio Engineering Society Convention 108 (2000).
 """
-# TODO: review Novak: https://ant-novak.com/posts/research/2015-10-30_JAES_Swept/
-# it was recommended by Gordon
 function expsweep(length;
+        # TODO: consider making 2π the default samplerate, which makes the
+        # frequencies interpretable as radians/sample
         samplerate = 1,
         minfreq=0.0004*samplerate,
+        # TODO: this probably isn't the right default. for example for
+        # meas = expsweep(30s; samplerate=48000Hz), it doesn't roll off on top
         maxfreq=0.5*samplerate,
         # default fades are computed below
         fadein=nothing,
         fadeout=nothing,
         fade=nothing,
-        gain=expsweep_gain,
+        gain=1,
         # for long sweeps we don't need long silence
         prepad=0,
         optimize=true,
         func=sin)
+
+    # TODO: review Novak: https://ant-novak.com/posts/research/2015-10-30_JAES_Swept/
+    # it was recommended by Gordon
 
     w1 = uconvert(NoUnits, minfreq * 2π / samplerate)
     w2 = uconvert(NoUnits, maxfreq * 2π / samplerate)
@@ -129,9 +134,14 @@ function _optimizew1(w1, w2, L)
 end
 
 # SampledSignals doesn't accept unitful values for samplerates, so strip it
-stimulus(m::ExpSweep{AT, <:Frequency}) where AT = SampleBuf(m.sig * m.gain,
-                                       uconvert(NoUnits, m.samplerate*s))
-stimulus(m::ExpSweep{AT, <:Real}) where AT = SampleBuf(m.sig * m.gain, m.samplerate)
+# stimulus(m::ExpSweep{AT, <:Frequency}) where AT = SampleBuf(m.sig * m.gain,
+#                                        uconvert(NoUnits, m.samplerate*s))
+# stimulus(m::ExpSweep{AT, <:Real}) where AT = SampleBuf(m.sig * m.gain, m.samplerate)
+
+# TODO: we  got rid of the SampledSignals stuff above because it was causing
+# some issues with broadcasting and `similar`. For now we just return a regular
+# array
+stimulus(m::ExpSweep) = m.sig * m.gain
 
 """
     function analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
@@ -161,12 +171,12 @@ function _analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
     # ripple. Generally things should be pretty flat if there's a fade in/out
     # TODO: seems kinda silly to compute the whole FFT just to look at the
     # center frequency. We could just do the dot product of that freq
-    roundtrip = xcorr(m.sig * m.gain, invfilt)
+    roundtrip = xcorr(m.sig * m.gain, invfilt; padmode=:longest)
     centeridx = round(Int, (w1 + (w2-w1)/2)/π*(length(roundtrip)/2))
     scale = abs(rfft(roundtrip)[centeridx])
 
     ir = mapslices(response, dims=1) do v
-        xcorr(v, invfilt) ./ scale
+        xcorr(v, invfilt, padmode=:longest) ./ scale
     end
 
     # keep the full IR (including non-causal parts representing nonlinearities)
@@ -203,6 +213,6 @@ function _analyze(m::ExpSweep, response::AbstractArray; noncausal=false)
         # if any(noncausalpower .> nf .* 1.1 .+ sqrt(eps()))
         #     @warn "Energy in noncausal IR is above noise floor. Check for nonlinearity"
         # end
-        timeslice(ir, zeroidx:zeroidx+T)
+        timeslice(ir, zeroidx:zeroidx+T-1)
     end
 end

@@ -34,3 +34,19 @@ striphz(f) = f
 striphz(f::Frequency{T}) where T = T(f/Hz)
 stripsec(t) = t
 stripsec(t::Time{T}) where T = T(t/s)
+
+energy(v) = sum(x->x^2, v)
+power(v) = energy(v)/length(v)
+
+"""
+    snr(mixture, signal)
+
+Returns the signal-to-noise power ratio assuming that the mixture contains a
+scaled version of the signal.
+"""
+function snr(mixture, signal)
+    mixcoef = dot(mixture, signal) / dot(signal, signal)
+    proj = mixcoef * signal
+
+    energy(proj)/energy(mixture-proj)
+end

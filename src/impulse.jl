@@ -20,7 +20,7 @@ It is included in this package mostly as a reference.
 $optiondoc_gain
 $optiondoc_prepad
 """
-impulse(L; prepad=L, gain=impulse_gain) = Impulse(L, prepad, gain)
+impulse(L; prepad=L, gain=1) = Impulse(L, prepad, gain)
 impulse(t::Time, samplerate::Frequency; kwargs...) = impulse(Int(t*samplerate); kwargs...)
 impulse(t::Time, samplerate; kwargs...) = impulse(Int(t/(1s) * samplerate); kwargs...)
 

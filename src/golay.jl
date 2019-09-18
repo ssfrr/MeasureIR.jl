@@ -143,12 +143,12 @@ function _analyze(sig::GolaySequence, response::AbstractArray)
     irA = mapslices(respA, dims=1) do v
         # warning - xcorr pads the inputs to equal length, so the total result
         # length should be 2*maxlen-1
-        xc = xcorr(v, A) / (2L * sig.gain)
+        xc = xcorr(v, A; padmode=:longest) / (2L * sig.gain)
         time0 = (length(xc)+1)÷2-1
         xc[time0 .+ (1:sig.decay)]
     end
     irB = mapslices(respB, dims=1) do v
-        xc = xcorr(v, B) / (2L * sig.gain)
+        xc = xcorr(v, B; padmode=:longest) / (2L * sig.gain)
         time0 = (length(xc)+1)÷2-1
         xc[time0 .+ (1:sig.decay)]
     end

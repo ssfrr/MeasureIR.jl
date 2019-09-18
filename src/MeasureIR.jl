@@ -4,11 +4,13 @@ using Compat: @warn
 using Unitful: s, Hz, Time, Frequency, uconvert, NoUnits
 using SampledSignals: SampleBuf, samplerate
 using Roots: find_zero
-using DSP: hanning, FIRFilter, filt, db2amp, xcorr
+using DSP: DSP, hanning, FIRFilter, filt, db2amp, xcorr, nextfastfft
 using FFTW: rfft, irfft
+using LinearAlgebra: dot
 
 export stimulus, analyze, noisefloor, prepadding, snr
 export expsweep, golay, mls, rpms, impulse
+export pilot
 
 """
 Abstract supertype for impulse response measurements. Subtypes should define a
@@ -77,6 +79,7 @@ include("impulse.jl")
 include("expsweep.jl")
 include("mls.jl")
 include("rpms.jl")
+include("pilot.jl")
 
 # workaround needed because DSP.jl doesn't handle SampleBufs
 # and Float32s well. We dispatch to an internal _analyze to avoid method

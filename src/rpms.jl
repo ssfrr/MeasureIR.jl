@@ -42,6 +42,6 @@ prepadding(s::RPMS) = s.prepad
 
 function _analyze(s::RPMS, response::AbstractArray)
     mapslices(response, dims=1) do v
-        xcorr(v[s.prepad+1:end], s.sig)[end÷2+1:end] / length(s.sig) / s.gain
+        xcorr(v[s.prepad+1:end], s.sig, padmode=:longest)[end÷2+1:end] / length(s.sig) / s.gain
     end
 end

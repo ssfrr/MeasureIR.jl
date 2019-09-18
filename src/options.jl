@@ -1,7 +1,8 @@
 const default_prepad=5*48000
 # gain levels set from running scaling.jl
-const impulse_gain = db2amp(-1)
-const expsweep_gain = db2amp(-1)
+# TODO: by default everything should output full-scale, but for
+# MLS, Golay, and RPMS include an option `peaknorm` to normalize by the true
+# peak. Alternatively we could just add a `peaknorm` function separately
 const mls_gain = 0.38911592741900447
 const golay_gain = 0.4143208008205667
 const rpms_gain = 0.2316778907504581
