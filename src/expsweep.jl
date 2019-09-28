@@ -60,8 +60,6 @@ function expsweep(length;
         fadeout=nothing,
         fade=nothing,
         gain=1,
-        # for long sweeps we don't need long silence
-        prepad=0,
         optimize=true,
         func=sin)
 

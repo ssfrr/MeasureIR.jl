@@ -38,6 +38,18 @@ stripsec(t::Time{T}) where T = T(t/s)
 energy(v) = sum(x->x^2, v)
 power(v) = energy(v)/length(v)
 
+
+"""
+Normalize a frequency with a given samplerate to cycles/sample.
+"""
+freqnorm(f, sr) = uconvert(NoUnits, f/sr)
+
+"""
+Normalize a duration with a given samplerate to integer samples (rounded)
+"""
+durnorm(dur, sr) = round(Int, uconvert(NoUnits, dur*sr))
+
+
 """
     snr(mixture, signal)
 

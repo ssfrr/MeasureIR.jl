@@ -1,6 +1,4 @@
 using MeasureIR
-# we also test some internals
-using MeasureIR: snr, findpilot, pilotsync
 using Unitful: s, kHz
 using SampledSignals: SampleBuf, samplerate
 # using Suppressor
@@ -183,38 +181,42 @@ end
     @test isapprox(snr(sig*2+noise, sig), 4; rtol=0.02)
 end
 
+# sr = 48kHz
+# f = 1kHz
+# dur = 1s
+# sig = [zeros(50000); pilot(dur, f, samplerate=sr); zeros(48000*10)]
+# sig .+= sqrt(2) .* randn.()
+# plt = plot(welch_pgram(sig[(1:10000) .+ 50000], 256).power)
 @testset "findpilot" begin
-    sig = [zeros(50000); pilot(1s, 1kHz, samplerate=48kHz); zeros(48000*10)]
-    sig .+= 3 .* randn.()
-    onset, offset = findpilot(sig, 1kHz, 1s; samplerate=48kHz)
-    @test isapprox(offset-onset, 48000*0.8; rtol=0.05)
-    @test isapprox(onset, 50000+48000*0.1; rtol=0.05)
+    sr = 48kHz
+    @testset "f=$f" for f in 0.99kHz:0.005kHz:1.01kHz
+        sig = [zeros(50000); pilot(dur, f, samplerate=sr); zeros(48000*10)]
+        sig .+= 8 .* randn.() # SNR of -21.1dB - not bad!
+        onset, offset = findpilot(sig, 1kHz, 1s; samplerate=sr)
+        # make sure we don't over-shoot
+        @test offset-onset <= 48000
+        # undershooting by a bit is OK
+        @test offset-onset > 48000*0.7
+        @test onset >= 50000
+        @test onset <= 50000+48000*0.3
+    end
 end
 
 # TODO: for some reason this is failing when skew == 1
 @testset "pilotsync" begin
-    for skew in 0.98:0.01:1.02
-        p = pilot(1s, 1kHz; samplerate=48kHz)
-        sig = [zeros(50000); resample(p, skew); zeros(48000*20)]
-        sig .+= 0.1*randn.()
-        onset, offset = findpilot(sig, 1kHz, 1s; samplerate=48kHz)
-        @test isapprox(pilotsync(sig[onset:offset], 1kHz; samplerate=48kHz),
-                       1/skew, rtol=1e-8)
+    L = 5s
+    sr = 48kHz
+    f = 1kHz
+    @testset "skew=$skew" for skew in 0.99:0.005:1.01
+        p = pilot(L, f; samplerate=sr)
+        sig = [zeros(50000);
+               isapprox(skew, 1) ? p : resample(p, skew);
+               zeros(48000*15)]
+        sig .+= randn.() ./ sqrt(2) # SNR of 0dB
+        onset, offset = findpilot(sig, f, L; samplerate=sr)
+        @test isapprox(pilotsync(sig[onset:offset], f; samplerate=sr),
+                       1/skew, rtol=5e-7)
     end
 end
 
-# skew = 1.02
-# p = pilot(1s, 1kHz; samplerate=48kHz)
-# p = resample(p, skew)
-# sig = [zeros(50000); p; zeros(48000*20)]
-# sig .+= 0.0.*randn.()
-# onset, offset = findpilot(sig, 1kHz, 1s; samplerate=48kHz)
-# @info "Expecting frequency: $(1/skew*2π/48)"
-# skew-1/pilotsync(sig[onset:offset], 1kHz; samplerate=48kHz)
-# plot(sig[onset:onset+100])
-# using Statistics: mean
-# mean(sig[onset:offset])
-# mean(p)
-# length(p)
-# offset-onset
 end # @testset MeasureIR

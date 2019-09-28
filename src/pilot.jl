@@ -5,39 +5,68 @@ function pilot(length, freq; samplerate=1)
     cos.((0:L-1) * dθ)
 end
 
+function pilotfilt(sig, ω)
+    # DSP.jl normalizes to half-cycle/sample, so that 1 is the nyquist,
+    # but the rest of this code uses 1 cycle/sample (so 0.5 is nyquist)
+    bpf = digitalfilter(Bandpass(2ω*0.97, 2ω/0.97),
+                        FIRWindow(;transitionwidth=2ω*0.1))
+    filt(bpf, sig)[length(bpf):end]
+end
+
+"""
+Compute reasonable onset and offset thresholds to find a pulse of length L
+within `sig`.
+"""
+function pulsethreshs(sig, L)
+    if length(sig) < 4L
+        @warn "`pulsethreshs` assumes `length(sig) > 4L` to estimate noise statistics"
+    end
+    lfrac = L/length(sig)
+    qs = quantile(sig, [0.75, 1-lfrac/2])
+    qs[1] .+ (0.55, 0.45) .* (qs[2]-qs[1])
+end
+
+"""
+Find a pilot tone in the given signal. Note that the total signal length should
+be at least 4 times longer than the expected length of the tone, so we can
+estimate noise statistics.
+"""
 function findpilot(sig, freq, len; samplerate=1)
-    # TODO: don't hardcode this filter length
-    N = 2048
-    ω = uconvert(NoUnits, freq/samplerate)
-    L = uconvert(NoUnits, len*samplerate)
-    bpf = gaussian(N, 0.20) .* cos.((0:N-1) * 2π * ω)
-    filtered = filt(bpf, sig)
-    env = abs.(hilbert(filtered))
-    lpf = gaussian(round(Int, 0.25*L), 0.15)
-    smoothed = filt(lpf, env.^2)
-    # plt = sigplot(smoothed)
-    onthresh = 8mean(smoothed)
-    offthresh = 4mean(smoothed)
-    # hline!(plt, [onthresh, offthresh])
+    ω = freqnorm(freq, samplerate)
+    L = durnorm(len, samplerate)
+    filtered = pilotfilt(sig, ω)
+    env = abs2.(hilbert(filtered))
+    onthresh, offthresh = pulsethreshs(env, L)
+    # lpf = gaussian(round(Int, 0.25*L), 0.15)
+    lpf = digitalfilter(Lowpass(1/4L),
+                        FIRWindow(;transitionwidth=30/L))
+    smoothed = filt(lpf, env)
     onset = findfirst((x->x>onthresh), smoothed)
     onset === nothing && return nothing, nothing
     offset = onset+findfirst(x->x<offthresh, smoothed[onset+1:end])
-    filtdelay = (length(bpf) + length(lpf))÷2
+    filtdelay = length(lpf)÷2
     onset -= filtdelay
     offset === nothing && return onset, nothing
     offset -= filtdelay
-    if abs(offset-onset-L) > 0.5L
-        @warn "Found pilot with length $(offset-onset) instead of $L"
-        return nothing, nothing
-    elseif abs(offset-onset-L) > 0.1L
+    if !isapprox(offset-onset, L; rtol=0.5)
         @warn "Found pilot with length $(offset-onset) instead of $L"
     end
 
     # only pull the middle 80% of the tone to account for any other onset/offset
     # irregularities
-    slack = round(Int, 0.1(offset-onset))
+    slack = 0.05(offset-onset)
+    round.(Int, (onset+slack, offset-slack))
+end
 
-    onset+slack, offset-slack
+"""
+Compute the average phase difference of `sig` (which should correspond to the
+frequency). The frequency is given in cycles/sample
+"""
+function avgphasediff(sig)
+    # we remove the ends to get rid of the ringing from the hilbert transform
+    an = hilbert(sig)[2000:end-2000]
+    diff = @view(an[2:end]) ./ @view an[1:end-1]
+    mean(angle, diff)/2π
 end
 
 """
@@ -45,29 +74,25 @@ Takes the given signal and pilot frequency and returns the resample factor
 necessary to synchronize the signal.
 """
 function pilotsync(sig, freq; samplerate=1)
-    # TODO: don't hardcode this filter length
-    N = 2048
-    ω = uconvert(NoUnits, 2π*freq/samplerate) # radians/sample
-    bpf = gaussian(N, 0.20) .* cos.((0:N-1) * ω)
-    filtered = filt(bpf, sig)[length(bpf):end]
-    # we remove the ends to get rid of the ringing from the hilbert transform
-    an = hilbert(filtered)[2000:end-2000]
-    diff = @view(an[2:end]) ./ @view an[1:end-1]
-    ω̂₁ = mean(angle, diff)
+    ω = freqnorm(freq, samplerate)
+    # bpf = gaussian(N, 0.20) .* cos.((0:N-1) * ω)
+    # filtered = filt(bpf, sig)[length(bpf):end]
+    filtered = pilotfilt(sig, ω)
+    ω̂₁ = avgphasediff(filtered)
     @info "frequency estimated from hilbert transform: $(ω̂₁)"
 
     # estimate amplitude, frequency, and phase
-    model(n, p) = @. p[1] * cos(p[2]*n + p[3])
+    model(n, p) = @. p[1] * cos(2π*p[2]*n + p[3])
 
     fit = curve_fit(model, (0:length(filtered)-1), filtered,
                     [1.0, ω̂₁, 0.0], autodiff=:forwarddiff)
 
     # @info "frequency estimated from lsq fit: $(fit.param[2]/2π*samplerate)"
     @info "fit amplitude: $(fit.param[1])"
-    @info "fit frequency: $(fit.param[2])"
-    @info "fit phase: $(fit.param[3])"
+    @info "fit frequency: $(fit.param[2] * samplerate)"
+    @info "fit phase (rad): $(fit.param[3])"
 
-    (fit.param[2]/2π*samplerate)/freq
+    fit.param[2] / ω
 end
 
 

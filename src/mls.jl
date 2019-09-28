@@ -20,11 +20,8 @@ be at least 2, as only the last `reps-1` repetitions are used.
 $optiondoc_gain
 $optiondoc_prepad
 """
-# TODO: this is not the right way to do MLS - we should be doing 2 or more
-# repetitions of the stimulus, then doing a circular correlation.
-# TODO: add samplerate support
-function mls(L, reps=2; gain=mls_gain, prepad=default_prepad)
-    N = Int(log2(nextpow(2, L)))
+function mls(len, reps=2; gain=mls_gain, prepad=default_prepad, samplerate=1)
+    N = Int(log2(nextpow(2, durnorm(len, samplerate))))
     1 <= N <= length(mlspolys) || throw(ArgumentError("N must be positive and <= $(length(mlspolys))"))
     poly = mlspolys[N]
     # where we'll keep the state used to compute the next value. The
@@ -45,7 +42,7 @@ function mls(L, reps=2; gain=mls_gain, prepad=default_prepad)
         out[i] = float(nextval) * 2 - 1
     end
 
-    MLS(out, reps, gain, prepad)
+    MLS(out, reps, gain, durnorm(prepad, samplerate))
 end
 
 stimulus(m::MLS) = [zeros(m.prepad); repeat(m.sig, m.reps)*m.gain]

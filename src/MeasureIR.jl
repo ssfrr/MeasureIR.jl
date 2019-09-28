@@ -5,15 +5,16 @@ using Unitful: s, Hz, Time, Frequency, uconvert, NoUnits
 using SampledSignals: SampleBuf, samplerate
 using Roots: find_zero
 using DSP: DSP, gaussian, hanning, hilbert
-using DSP: FIRFilter, filt, db2amp, xcorr, nextfastfft
+using DSP: FIRFilter, FIRWindow, filt, db2amp, xcorr, nextfastfft
+using DSP: digitalfilter, Bandpass, Lowpass
 using FFTW: rfft, irfft
 using LinearAlgebra: dot
-using Statistics: mean
-using LsqFit: curve_fit
+using Statistics: mean, quantile
+using LsqFit: curve_fit, stderror
 
 export stimulus, analyze, noisefloor, prepadding, snr
 export expsweep, golay, mls, rpms, impulse
-export pilot
+export pilot, findpilot, pilotsync
 
 """
 Abstract supertype for impulse response measurements. Subtypes should define a
