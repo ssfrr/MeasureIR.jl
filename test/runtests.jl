@@ -1,9 +1,54 @@
 using MeasureIR
 using Unitful: s, kHz
 using SampledSignals: SampleBuf, samplerate
-# using Suppressor
+using Suppressor
 using DSP
 using Test
+
+"""
+Simulate running the given stimulus through a real system, including a linear
+IR, nonlinear distortion, noise, and clock skew.
+
+If `dist` is given, it should be a multiplier that scales the stimulus before
+passing into `tanh`. The distorted signal is scaled to have the same energy as
+the original. A multiplier of 1 gives pretty mild distortion, and it goes up
+from there.
+
+Returns the simulated response, as well as the IR used.
+"""
+function simIR(stim; ir=nothing, dist=nothing, noisepow=-Inf, skew=1.0)
+    if dist !== nothing
+        stimenergy = sum(x->x^2, stim)
+        stim .= tanh.(stim)
+        distenergy = sum(x->x^2, stim)
+
+        stim .*= sqrt(sigenergy/distenergy)
+    end
+    if ir === nothing
+        ir = [zeros(100); 1; randn.() .* exp.(range(-1.5, -8, length=7500))]
+    end
+    resp = conv(stim, ir)
+    if noisepow > -Inf
+        resp .+= db2amp(noisepow) .* randn.()
+    end
+    if skew != 1.0
+        resp = resample(resp, skew)
+    end
+
+    resp, ir
+end
+
+"""
+Generates a broadband random signal of length `N` that's periodic with period
+`P`. `P` does not need to be an integer.
+"""
+function randperiodic(N, P)
+    f = 1/P # fundamental freq
+    # we add eps() here so we don't get hit by floating-point error when f
+    # divides evenly into 1
+    H = Int(fld(0.5+eps(), f)) # number of harmonics we can fit below nyquist
+    sum(cos.(2π.*(h.*f.*(0:N-1).+rand()))./H for h in 1:H)
+end
 
 function testmeasure(measfunc)
     meas = measfunc(8192)
@@ -103,10 +148,10 @@ end
     meas = golay(L)
     ir = randn(L÷2) .* exp.(linspace(0,-8, L÷2))
     stim = stimulus(meas)
-    out = @color_output false @capture_err analyze(meas, conv(stim, ir))
+    out = @capture_err analyze(meas, conv(stim, ir))
     @test out == ""
     ir = randn(3L÷2) .* exp.(linspace(0,-8, 3L÷2))
-    out = @color_output false @capture_err analyze(meas, conv(stim, ir))
+    out = @capture_err analyze(meas, conv(stim, ir))
     @test out == string("Warning: nonsilent samples past end of analysis ",
                         "window. Check your test signal is long enough for ",
                         "the response\n")
@@ -117,17 +162,17 @@ end
 #     L = 4096
 #     meas = expsweep(L)
 #     stim = stimulus(meas)
-#     out = @color_output false @capture_err analyze(meas, stim)
+#     out = @capture_err analyze(meas, stim)
 #     @test out == ""
-#     out = @color_output false @capture_err analyze(meas, tanh.(stim*2))
+#     out = @capture_err analyze(meas, tanh.(stim*2))
 #     @test out == "Warning: Energy in noncausal IR is above noise floor. Check for nonlinearity\n"
 #
 #     # now try with some noise and a more realistic IR
 #     testir = randn(512) .* exp.(linspace(0,-8, 512)) / 2
 #     resp = conv(stim, testir)[1:length(stim)]
-#     out = @color_output false @capture_err analyze(meas, stim.+randn.().*0.1)
+#     out = @capture_err analyze(meas, stim.+randn.().*0.1)
 #     @test out == ""
-#     out = @color_output false @capture_err analyze(meas, tanh.(stim*2).+randn.().*0.1)
+#     out = @capture_err analyze(meas, tanh.(stim*2).+randn.().*0.1)
 #     @test out == "Warning: Energy in noncausal IR is above noise floor. Check for nonlinearity\n"
 # end
 
@@ -189,33 +234,45 @@ end
 # plt = plot(welch_pgram(sig[(1:10000) .+ 50000], 256).power)
 @testset "findpilot" begin
     sr = 48kHz
+    dur = 1s
     @testset "f=$f" for f in 0.99kHz:0.005kHz:1.01kHz
         sig = [zeros(50000); pilot(dur, f, samplerate=sr); zeros(48000*10)]
         sig .+= 8 .* randn.() # SNR of -21.1dB - not bad!
-        onset, offset = findpilot(sig, 1kHz, 1s; samplerate=sr)
-        # make sure we don't over-shoot
-        @test offset-onset <= 48000
-        # undershooting by a bit is OK
-        @test offset-onset > 48000*0.7
-        @test onset >= 50000
-        @test onset <= 50000+48000*0.3
+        onset = findpilot(sig, 1kHz, 1s; samplerate=sr)
+        @test isapprox(onset, 50001, rtol=0.1)
     end
 end
 
-# TODO: for some reason this is failing when skew == 1
 @testset "pilotsync" begin
-    L = 5s
+    dur = 5s
     sr = 48kHz
     f = 1kHz
+    L = 5*48000
     @testset "skew=$skew" for skew in 0.99:0.005:1.01
-        p = pilot(L, f; samplerate=sr)
+        p = pilot(dur, f; samplerate=sr)
         sig = [zeros(50000);
                isapprox(skew, 1) ? p : resample(p, skew);
                zeros(48000*15)]
         sig .+= randn.() ./ sqrt(2) # SNR of 0dB
-        onset, offset = findpilot(sig, f, L; samplerate=sr)
-        @test isapprox(pilotsync(sig[onset:offset], f; samplerate=sr),
+        onset = findpilot(sig, f, dur; samplerate=sr)
+        @test isapprox(pilotsync(sig[(0:L-1) .+ onset], f; samplerate=sr),
                        1/skew, rtol=5e-7)
+    end
+end
+
+@testset "getperiod" begin
+    N = 65535
+    meas = mls(N, 20)
+
+    # test at a variety of skews in ppm
+    skews = 1 .+ (-400:80:400) ./ 1e6
+
+    @testset "skew=$skew" for skew in skews
+        resp, ir = simIR(stimulus(meas), skew=skew, noisepow=-8.2+20) # -20dB SNR
+        period = getperiod(resp, N)
+        err = (period-skew*N)/period
+        @show skew, err
+        @test isapprox(period, skew*N, rtol=1e-7)
     end
 end
 

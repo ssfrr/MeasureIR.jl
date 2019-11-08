@@ -3,18 +3,19 @@ module MeasureIR
 using Compat: @warn
 using Unitful: s, Hz, Time, Frequency, uconvert, NoUnits
 using SampledSignals: SampleBuf, samplerate
-using Roots: find_zero
 using DSP: DSP, gaussian, hanning, hilbert
-using DSP: FIRFilter, FIRWindow, filt, db2amp, xcorr, nextfastfft
+using DSP: FIRFilter, FIRWindow, filt, db2amp, pow2db, xcorr, nextfastfft
 using DSP: digitalfilter, Bandpass, Lowpass
+using DSP: resample
 using FFTW: rfft, irfft
 using LinearAlgebra: dot
 using Statistics: mean, quantile
-using LsqFit: curve_fit, stderror
+using Optim: NewtonTrustRegion, optimize, converged, minimizer
+using Printf
 
 export stimulus, analyze, noisefloor, prepadding, snr
 export expsweep, golay, mls, rpms, impulse
-export pilot, findpilot, pilotsync
+export pilot, findpilot, pilotsync, getperiod
 
 """
 Abstract supertype for impulse response measurements. Subtypes should define a
@@ -84,6 +85,7 @@ include("expsweep.jl")
 include("mls.jl")
 include("rpms.jl")
 include("pilot.jl")
+include("period.jl")
 
 # workaround needed because DSP.jl doesn't handle SampleBufs
 # and Float32s well. We dispatch to an internal _analyze to avoid method

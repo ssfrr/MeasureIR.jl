@@ -14,48 +14,28 @@ function pilotfilt(sig, ω)
 end
 
 """
-Compute reasonable onset and offset thresholds to find a pulse of length L
-within `sig`.
-"""
-function pulsethreshs(sig, L)
-    if length(sig) < 4L
-        @warn "`pulsethreshs` assumes `length(sig) > 4L` to estimate noise statistics"
-    end
-    lfrac = L/length(sig)
-    qs = quantile(sig, [0.75, 1-lfrac/2])
-    qs[1] .+ (0.55, 0.45) .* (qs[2]-qs[1])
-end
-
-"""
-Find a pilot tone in the given signal. Note that the total signal length should
-be at least 4 times longer than the expected length of the tone, so we can
-estimate noise statistics.
+Find a pilot tone in the given signal.
 """
 function findpilot(sig, freq, len; samplerate=1)
+    # TODO: this isn't robust to a wideband energy increase. It looks for an
+    # energy pulse in the target band, but that could also get triggered if
+    # everything just gets louder
     ω = freqnorm(freq, samplerate)
     L = durnorm(len, samplerate)
     filtered = pilotfilt(sig, ω)
-    env = abs2.(hilbert(filtered))
-    onthresh, offthresh = pulsethreshs(env, L)
-    # lpf = gaussian(round(Int, 0.25*L), 0.15)
-    lpf = digitalfilter(Lowpass(1/4L),
-                        FIRWindow(;transitionwidth=30/L))
-    smoothed = filt(lpf, env)
-    onset = findfirst((x->x>onthresh), smoothed)
-    onset === nothing && return nothing, nothing
-    offset = onset+findfirst(x->x<offthresh, smoothed[onset+1:end])
-    filtdelay = length(lpf)÷2
-    onset -= filtdelay
-    offset === nothing && return onset, nothing
-    offset -= filtdelay
-    if !isapprox(offset-onset, L; rtol=0.5)
-        @warn "Found pilot with length $(offset-onset) instead of $L"
-    end
 
-    # only pull the middle 80% of the tone to account for any other onset/offset
-    # irregularities
-    slack = 0.05(offset-onset)
-    round.(Int, (onset+slack, offset-slack))
+    env = abs2.(hilbert(filtered))
+    _, onset = findmax(xcorr(env, ones(L); padmode=:none))
+    onset -= L
+
+    prerollpower = sum(x->x^2, filtered[1:onset-1]) / (onset-1)
+    pilotpower = sum(x->x^2, filtered[(0:L-1).+onset]) / L
+
+    snr = pow2db(pilotpower/prerollpower)
+    if snr < 6
+        @warn @sprintf "Narrowband Pilot SNR only %.2f dB" snr
+    end
+    onset
 end
 
 """
