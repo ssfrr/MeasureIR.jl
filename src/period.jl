@@ -8,8 +8,8 @@ The algorithm is to first compute a discrete cross-correlation and oversample by
 cross-correlation as a starting point for a numerical optimization of the
 average-squared-distance function in the frequency domain.
 """
-function getperiod(x::AbstractVector, L)
-    maxD = L÷2
+function getperiod(x::AbstractVector, L; max_ppm=500_000)
+    maxD = L * max_ppm ÷ 1_000_000
 
     # create two signals that are offset by L (our expected period length), and
     # zero-pad by to do a linear (rather than circular) convolution. We set up
@@ -33,7 +33,8 @@ function getperiod(x::AbstractVector, L)
     # do a discrete cross-correlation and upsample. The maximum here should be
     # a pretty good estimate of the true peak. Should be valid from 1:8L, which
     # represents lags from -L:L (upsampled by 4)
-    xc = resample(irfft(X1 .* conj.(X2), m)[1:2maxD+1], 4)
+    # not sure why `xc` wasn't being type-inferrred`
+    xc = resample(irfft(X1 .* conj.(X2), m)[1:2maxD+1], 4)::Vector{Float64}
     D_est1 = (findmax(xc)[2]-1)/4-maxD
 
     # note if `m` were guaranteed to be even the upper bound here would be π
@@ -42,8 +43,6 @@ function getperiod(x::AbstractVector, L)
     # error function for  frequency-domain delay estimation. This can be
     # interpreted as a frequency-domain ASDF (average-squared distance function)
     # as a function of the continuous delay
-    # err(D) = sum(abs2(X1[i] - X2[i] * exp(-im*ω[i]*(D+maxD)))
-    #              for i in 1:M)*(m-L)/(m-L-abs(maxD-D))
     err(D) = sum(abs2(X1[i] - X2[i] * exp(-im*ω[i]*(D+maxD)))
                  for i in 1:M)
 
@@ -53,6 +52,7 @@ function getperiod(x::AbstractVector, L)
         throw(ErrorException("Delay estimation failed to converge"))
     end
 
-    # return the delay
-    L+minimizer(opt)[1]
+    # return the delay and the normalized minimum error
+    norm = 2sqrt(sum(abs2, X1)*sum(abs2, X2))
+    L+minimizer(opt)[1], minimum(opt)/norm
 end

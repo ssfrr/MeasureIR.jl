@@ -270,8 +270,6 @@ end
     @testset "skew=$skew" for skew in skews
         resp, ir = simIR(stimulus(meas), skew=skew, noisepow=-8.2+20) # -20dB SNR
         period = getperiod(resp, N)
-        err = (period-skew*N)/period
-        @show skew, err
         @test isapprox(period, skew*N, rtol=1e-7)
     end
 end
